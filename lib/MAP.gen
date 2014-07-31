@@ -1,0 +1,283 @@
+FUNCTION MAP_HELP
+  INFOLINE 1 ""
+  INFOLINE 1 "MAP: Simple map implementation (V2)"
+  INFOLINE 1 "Nabi Abudaldah, April 8th, 2013"
+  INFOLINE 1 ""
+  INFOLINE 1 "A map is a list of key-value pairs where the key is unique."
+  INFOLINE 1 "This implementation is linear in time as the map grows."
+  INFOLINE 1 ""
+  INFOLINE 1 ""
+  INFOLINE 1 "Functions:"
+  INFOLINE 1 ""
+  INFOLINE 1 "  MAP_NEW                   Create new empty map."
+  INFOLINE 1 "  MAP_SET key = value       Map value to key."
+  INFOLINE 1 "  MAP_GET value = key       Retrieve value of key."
+  INFOLINE 1 "  MAP_SHOW                  Show entire map (for debugging)."
+  INFOLINE 1 "  MAP_EXPORT string         Serialize current map to a string variable."
+  INFOLINE 1 "  MAP_IMPORT string         Read a map from a serialized string variable."
+  INFOLINE 1 "  MAP_SAVE filename         Save current map to filename."
+  INFOLINE 1 "  MAP_LOAD filename         Read map from filename."
+  INFOLINE 1 "  MAP_LIST list = object    List a specific type of object."
+  INFOLINE 1 "  MAP_COUNT count = object  Count a specific type of object."
+  INFOLINE 1 ""
+  INFOLINE 1 ""
+  INFOLINE 1 "Example:"
+  INFOLINE 1 ""
+  INFOLINE 1 "  MAP_NEW"
+  INFOLINE 1 "  MAP_SET ~"city[utrecht].name~"       = ~"Utrecht~""
+  INFOLINE 1 "  MAP_SET ~"city[utrecht].population~" = 300000"
+  INFOLINE 1 "  "
+  INFOLINE 1 "  VAR name population"
+  INFOLINE 1 "  MAP_GET %name$%       = ~"city[utrecht].name~""
+  INFOLINE 1 "  MAP_GET %population$% = ~"city[utrecht].population~""
+  INFOLINE 1 ""
+  INFOLINE 1 ""
+  INFOLINE 1 "Some things to consider:"
+  INFOLINE 1 ""
+  INFOLINE 1 "  1. Parameters are changed by the functions! Nobody knows why."
+  INFOLINE 1 "  2. Concatenate strings without the plus-signs, see example..."
+  INFOLINE 1 "  3. The '='-sign is a forbidden character in keys and values, sorry."
+  INFOLINE 1 ""
+  INFOLINE 1 ""
+  INFOLINE 1 "Objects (level up!):"
+  INFOLINE 1 ""
+  INFOLINE 1 "An object is a collection of readily accessible data about a single"
+  INFOLINE 1 "entity. Like so:"  
+  INFOLINE 1 ""
+  INFOLINE 1 "  1. Use lowercase alpha-numeric keys, e.g. 'meterid'."
+  INFOLINE 1 "  2. Use brackets as index enclosures, e.g. 'register[high]'."
+  INFOLINE 1 "  3. Use dots as hierarchy indicators, e.g. 'meter[2].id'."
+  INFOLINE 1 "  3. Post fix a question mark for boolean data, e.g. 'valid?'."
+
+ENDFUNCTION
+
+VAR MAP_EOL MAP_CR MAP_LF
+SAVEFILETEXT "*" " " 1
+LOADFILETEXT MAP_EOL = "*"
+DEF MAP_EOL = SUBSTR(%MAP_EOL$%;2;2)
+DEF MAP_CR  = SUBSTR(%MAP_EOL$%;1;1)
+DEF MAP_LF  = SUBSTR(%MAP_EOL$%;2;1)
+
+VAR MAP_PAIR_SEPARATOR MAP_RECORD_SEPARATOR MAP_ARRAY_SEPARATOR
+DEF MAP_PAIR_SEPARATOR  = "="
+DEF MAP_RECORD_SEPARATOR = %MAP_EOL$%
+DEF MAP_ARRAY_SEPARATOR = ","
+
+VAR MAP_ENTRIES MAP_KEY[] MAP_VALUE[]
+
+FUNCTION MAP_NEW
+  DEF MAP_ENTRIES = 0
+  CLEARARRAY MAP_KEY[]
+  CLEARARRAY MAP_VALUE[]
+ENDFUNCTION
+
+FUNCTION MAP_SET s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
+
+  # If already in table, find and replace
+  VAR index s key value a[]
+
+  DEF s = %s1$% + %s2$% + %s3$% + %s4$% + %s5$% + %s6$% + %s7$% + %s8$% + %s9$% + %s10$% + %s11$% + %s12$% + %s13$% + %s14$% + %s15$% + %s16$%
+
+  MAKEARRAYOFSTRING a[] = %s$% %MAP_PAIR_SEPARATOR$%
+  DEF a[3] = ""
+  DEF key =  %a[1]$%
+  DEF value = %a[2]$%
+
+  # If both the key and the value are given...
+  IF LENGTH(%key$%) > 0 AND LENGTH(%value$%) > 0
+
+    # See if we have an entry
+    FINDTEXTINARRAY index = MAP_KEY[] %key$% 1 1 %MAP_ENTRIES%
+    IF %index% >= 1 AND %index% <= %MAP_ENTRIES%
+      # Already in table: replace entry
+      DEF MAP_KEY[%index%]   = %key$%
+      DEF MAP_VALUE[%index%] = %value$%
+    ELSE
+      # Not yet in table: new entry
+      INC MAP_ENTRIES
+      DEF MAP_KEY[%MAP_ENTRIES%]   = %key$%
+      DEF MAP_VALUE[%MAP_ENTRIES%] = %value$%
+    ENDIF
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION MAP_GET value = s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
+
+  VAR index key
+
+  DEF key = %s1$% + %s2$% + %s3$% + %s4$% + %s5$% + %s6$% + %s7$% + %s8$% + %s9$% + %s10$% + %s11$% + %s12$% + %s13$% + %s14$% + %s15$% + %s16$%
+
+  FINDTEXTINARRAY index = MAP_KEY[] %key$% 1 1 %MAP_ENTRIES%
+  IF %index% >= 1 AND %index% <= %MAP_ENTRIES%
+    DEF value = %MAP_VALUE[index]$%
+  ELSE
+    DEF value = ""
+  ENDIF
+ENDFUNCTION
+
+FUNCTION MAP_SHOW
+  VAR i s k v
+  FOR i = 1 TO %MAP_ENTRIES%
+    DEF k = %MAP_KEY[i]$%
+    DEF v = %MAP_VALUE[i]$%
+    IF LENGTH(%v$%) > 40
+      DEF v = SUBSTR(%v$%;1;40) + "..."
+    ENDIF
+    DEF s = %k$% + " = ~"" + %v$% + "~""
+    INFOLINE 1 %s$%
+  NEXT
+ENDFUNCTION
+
+FUNCTION MAP_EXPORT string
+  VAR i
+  DEF string = ""
+  FOR i = 1 TO %MAP_ENTRIES%
+    DEF string = %string$% + %MAP_KEY[i]$% +  %MAP_PAIR_SEPARATOR$% + %MAP_VALUE[i]$% + %MAP_RECORD_SEPARATOR$%
+  NEXT
+ENDFUNCTION
+
+FUNCTION MAP_IMPORT string
+  VAR a[] i
+  MAKEARRAYOFSTRING a[] = %string$% %MAP_RECORD_SEPARATOR$%
+  MAP_NEW
+  FOR i = 1 TO %a[0]%
+    IF LENGTH(TRIM(%a[i]$%)) > 0
+      MAP_SET %a[i]$%
+    ENDIF
+  NEXT
+ENDFUNCTION
+
+FUNCTION MAP_LOAD filename
+  VAR filecontent
+  LOADFILETEXT filecontent = %filename$%
+  MAP_IMPORT %filecontent$%
+ENDFUNCTION
+
+FUNCTION MAP_SAVE filename
+  VAR filecontent
+  MAP_EXPORT %filecontent$%
+  SAVEFILETEXT %filename$% %filecontent$% 0 "OVERWRITE"
+ENDFUNCTION
+
+FUNCTION MAP_LIST list = type WHERE field OPERATOR value
+
+  VAR list[] i n id
+  DEF list[0] = 0
+  FOR i = 1 TO %MAP_ENTRIES%
+    DEF id = ""
+    IF LENGTH(%type$%) > 0
+      IF SUBSTR(%MAP_KEY[i]$%;1;LENGTH(%type$%) + 1) == (%type$% + "[")
+        DEF id = SUBSTR(%MAP_KEY[i]$%;LENGTH(%type$%) + 2;LENGTH(%MAP_KEY[i]$%) - LENGTH(%type$%) - 1)
+        DEF id = SUBSTR(%id$%;1;POS(%id$%;"]") - 1)
+      ENDIF
+    ELSE
+      DEF id = %MAP_KEY[i]$%
+      DEF id = SUBSTR(%id$%;POS(%id$%;"[") + 1;LENGTH(%id$%) - POS(%id$%;"[") - 1)
+      DEF id = SUBSTR(%id$%;1;POS(%id$%;"]") - 1)
+    ENDIF
+
+    FINDTEXTINARRAY n = list[] %id$% 1 1 %list[0]%
+    IF %n% <= 0 AND LENGTH(%id$%) > 0
+      INC list[0]
+      DEF list[%list[0]%] = %id$%
+    ENDIF
+
+  NEXT
+
+  MAKESTRINGOFARRAY list = list[] %list[0]% 1 %MAP_ARRAY_SEPARATOR$%
+
+  VAR selection[] _value
+  IF %WHERE$% == "WHERE" AND %OPERATOR$% == "="
+    DEF selection[0] = 0
+    FOR i = 1 TO %list[0]%
+      DEF id = %list[i]$%
+      MAP_GET %_value$% = %type$% "[" %id$% "]." %field$%
+      IF %_value$% == %value$%
+        INC selection[0]
+        DEF selection[%selection[0]%] = %id$%
+      ENDIF
+    NEXT
+
+    MAKESTRINGOFARRAY list = selection[] %selection[0]% 1 %MAP_ARRAY_SEPARATOR$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION MAP_COUNT count = type WHERE field OPERATOR value
+  VAR array array[]
+  MAP_LIST %array$% = %type$% %WHERE$% %field$% %OPERATOR$% %value$%
+  MAKEARRAYOFSTRING array[] = %array$% %MAP_ARRAY_SEPARATOR$%
+  DEF count = %array[0]%
+ENDFUNCTION
+
+FUNCTION MAP_PUSH s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
+
+  VAR index s key value a[]
+
+  DEF s = %s1$% + %s2$% + %s3$% + %s4$% + %s5$% + %s6$% + %s7$% + %s8$% + %s9$% + %s10$% + %s11$% + %s12$% + %s13$% + %s14$% + %s15$% + %s16$%
+
+  MAKEARRAYOFSTRING a[] = %s$% %MAP_PAIR_SEPARATOR$%
+  DEF a[3] = ""
+  DEF key =  %a[1]$%
+  DEF value = %a[2]$%
+
+  # If both the key and the value are given...
+  IF LENGTH(%key$%) > 0 AND LENGTH(%value$%) > 0
+
+    # See if we have an entry
+    FINDTEXTINARRAY index = MAP_KEY[] %key$% 1 1 %MAP_ENTRIES%
+    IF %index% >= 1 AND %index% <= %MAP_ENTRIES%
+      # Already in table: add (push) new value to list
+      DEF MAP_KEY[%index%]   = %key$%
+      DEF MAP_VALUE[%index%] = %MAP_VALUE[index]$% + %MAP_ARRAY_SEPARATOR$% + %value$%
+    ELSE
+      # Not yet in table: new entry
+      INC MAP_ENTRIES
+      DEF MAP_KEY[%MAP_ENTRIES%]   = %key$%
+      DEF MAP_VALUE[%MAP_ENTRIES%] = %value$%
+    ENDIF
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION MAP_TOGRID object_type = field1 field2 field3 field4 field5 field6 field7 field8 field9 field10
+
+  VAR field_list field_count field j c
+  DEF field_list = %field1$% + "," + %field2$% + "," + %field3$% + "," + %field4$% + "," + %field5$% + "," + %field6$% + "," + %field7$% + "," + %field8$% + "," + %field9$% + "," + %field10$%
+  GETELEMENTCOUNT field_count = %field_list$%
+
+  NEWGRID 1 1 1024
+  VAR object_list object_count i object_id value
+  MAP_LIST %object_list$% = "file"
+  GETELEMENTCOUNT object_count = %object_list$%
+  FOR i = 1 TO %object_count%
+
+    GETELEMENTATPOS object_id = %object_list$% %i%
+    WRITECELLS %object_id$% 1 1 %i% %i%
+
+    FOR j = 1 TO %field_count%
+      GETELEMENTATPOS field = %field_list$% %j%
+      IF %field$% != ""
+        MAP_GET %value$% = %object_type$% "[" %object_id$% "]." %field$%
+        DEF c = %j% + 1
+        WRITECELLS %value$% %c% %c% %i% %i%
+      ENDIF
+    NEXT
+
+  NEXT
+
+  INSERTROW 1
+  WRITECELLS %object_type$%   1 1 1 1
+  FOR j = 1 TO %field_count%
+    IF %field$% != ""
+      GETELEMENTATPOS field = %field_list$% %j%
+      DEF c = %j% + 1
+      WRITECELLS %field$% %c% %c% 1 1
+    ENDIF
+  NEXT
+
+ENDFUNCTION

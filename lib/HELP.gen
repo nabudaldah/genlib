@@ -1,0 +1,27 @@
+VAR HELP_SCRIPTTEXT
+SCRIPTTEXTTOVAR HELP_SCRIPTTEXT
+
+FUNCTION HELP search
+
+  # End-of-line characters (CR+LF)
+  VAR eol cr
+  SAVEFILETEXT "*" " " 1
+  LOADFILETEXT eol = "*"
+  DEF eol = SUBSTR(%eol$%;2;2)
+  DEF cr  = SUBSTR(%eol$%;1;1)
+
+  VAR lines[]
+  MAKEARRAYOFSTRING lines[] = %HELP_SCRIPTTEXT$% %cr$%
+
+  VAR l line
+  FOR l = 1 TO %lines[0]%
+    DEF line = TRIM(%lines[l]$%)
+    IF POS(TRIM(UPPERCASE(%line$%));"FUNCTION") == 1
+      DEF line = TRIM(SUBSTR(%line$%;9;LENGTH(%line$%)))
+      IF %search$% == "" OR POS(%line$%;%search$%) > 0
+        INFOLINE 1 %line$%
+      ENDIF
+    ENDIF
+  NEXT
+
+ENDFUNCTION

@@ -1,0 +1,514 @@
+
+
+VAR TIME_PTU_INTERVAL TIME_PTU_FRACTION TIME_OFFSET
+DEF TIME_PTU_INTERVAL = 15
+DEF TIME_PTU_FRACTION = 1 / 24 / 60 * %TIME_PTU_INTERVAL%
+DEF TIME_PTU_INTERVAL = 15
+DEF TIME_OFFSET   = 0
+
+FUNCTION TIME_SETUP commodity
+
+  IF %commodity$% == "" OR POS("p,e,power,elektra,elektro,electra,electro,electricity,electriciteit,elek,elec";LOWERCASE(%commodity$%)) > 0
+    DEF TIME_PTU_INTERVAL = 15
+    DEF TIME_PTU_FRACTION = 1 / 24 / 60 * %TIME_PTU_INTERVAL%
+    DEF TIME_OFFSET   = 0
+  ENDIF
+
+  IF POS("g,gas";LOWERCASE(%commodity$%)) > 0
+    DEF TIME_PTU_INTERVAL = 60
+    DEF TIME_PTU_FRACTION = 1 / 24 / 60 * %TIME_PTU_INTERVAL%
+    DEF TIME_OFFSET   = 6
+  ENDIF
+
+ENDFUNCTION
+
+# TIME_SHIFT %time% = 1 year(s)
+# TIME_SHIFT %time% = -2 day(s)
+# TIME_SHIFT %time% = 2 hour(s)
+# TIME_SHIFT %time% = +8 ptu(s)
+
+FUNCTION TIME_FRACTION fraction = unit
+
+  IF POS("w,week,weeks";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 7
+    STOP
+  ENDIF
+
+  IF POS("d,day,dag,days,dagen";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1
+    STOP
+  ENDIF
+
+  IF POS("h,u,hr,hour,uur,hours,uren";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1 / 24
+    STOP
+  ENDIF
+
+  IF POS("p,ptu,ptus,pte,ptes";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1 / 24 / 60 * %TIME_PTU_INTERVAL%
+    STOP
+  ENDIF
+
+  IF POS("5m,5min,p5,ptu5,ptus5,pte5,ptes5";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1 / 24 / 60 * 5
+    STOP
+  ENDIF
+
+  IF POS("15m,15min,p15,ptu15,ptus15,pte15,ptes15";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1 / 24 / 60 * 15
+    STOP
+  ENDIF
+
+  IF POS("60m,60min,p60,ptu60,ptus60,pte60,ptes60";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1 / 24 / 60 * 60
+    STOP
+  ENDIF
+
+  IF POS("m,min,minute,minutes,minuut,minuten";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1 / 24 / 60
+    STOP
+  ENDIF
+
+  IF POS("s,sec,secs,second,seconds,seconde,seconden,secondes,sekonde,sekonden,sekondes";LOWERCASE(%unit$%)) > 0
+    DEF fraction = 1 / 24 / 60 / 60
+    STOP
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION TIME_SHIFT time = shift unit
+
+  IF NOT ISNUMBER(%time$%) OR %time$% == "" OR VAL(%time$%) == 0
+    DEF time = NOW
+  ENDIF
+
+  IF NOT ISNUMBER(%time$%)
+    STOP
+  ENDIF
+
+  VAR fraction
+
+  TIME_FRACTION %fraction% = %unit$%
+
+  IF %fraction$% == ""
+    STOP
+  ENDIF
+
+  IF SUBSTR(%shift$%;1;1) == "+"
+    DEF shift = SUBSTR(%shift$%;2;LENGTH(%shift$%)-1)
+  ENDIF
+
+  IF NOT ISNUMBER(%shift$%)
+    STOP
+  ENDIF
+
+  DEF time = %time% + (%shift% * %fraction%)
+
+ENDFUNCTION
+
+FUNCTION TIME_ROUND time = unit
+
+  IF NOT ISNUMBER(%time$%)
+    STOP
+  ENDIF
+
+  VAR fraction
+  TIME_FRACTION %fraction% = %unit$%
+
+  IF NOT ISNUMBER(%fraction$%)
+    STOP
+  ENDIF
+
+  DEF time = FLOOR(%time% / %fraction%) * %fraction%
+
+ENDFUNCTION
+
+FUNCTION TIME_FORMAT time = format
+
+  VAR l d t
+
+  IF NOT ISNUMBER(%time$%)
+    STOP
+  ENDIF
+
+  IF %format$% == ""
+    DEF format = "ISO"
+  ENDIF
+
+  IF UPPERCASE(%format$%) == "ISO"
+    DEF l = LOCALUTC(%time%)
+    IF %l% == 0
+      DEF l = "Z"
+    ELSE
+      DEF l = FORMATNUMBER(%l%;0;2)
+      IF VAL(%l$%) > 0
+        DEF l = "+" + %l$% + ":00"
+      ELSE
+        DEF l =       %l$% + ":00"
+      ENDIF
+    ENDIF
+    DEF d = DATESTR(%time%;"YYYY-MM-DD")
+
+    VAR s
+    DEF s = TIMESTR(%time%;"SS")
+    IF HOUR(%time%) OR MINUTE(%time%) OR %s%
+      IF %s%
+        DEF t = "T" + TIMESTR(%time%;"HH:NN:SS") + %l$%
+      ELSE
+        DEF t = "T" + TIMESTR(%time%;"HH:NN") + %l$%
+      ENDIF
+    ENDIF
+    DEF time = %d$% + %t$%
+  ENDIF
+
+  IF UPPERCASE(%format$%) == "TIME"
+    DEF time = TIMESTR(%time%;"HH:NN")
+  ENDIF
+
+  IF UPPERCASE(%format$%) == "ISOFULL"
+    DEF l = LOCALUTC(%time%)
+    IF %l% == 0
+      DEF l = "Z"
+    ELSE
+      DEF l = FORMATNUMBER(%l%;0;2)
+      IF VAL(%l$%) > 0
+        DEF l = "+" + %l$% + ":00"
+      ELSE
+        DEF l =       %l$% + ":00"
+      ENDIF
+    ENDIF
+    DEF d = DATESTR(%time%;"YYYY-MM-DD")
+
+    DEF t = "T" + TIMESTR(%time%;"HH:NN") + %l$%
+    DEF time = %d$% + %t$%
+  ENDIF
+
+  IF UPPERCASE(%format$%) == "DBSTORE" OR UPPERCASE(%format$%) == "DBIMPORT"
+    DEF time = DATESTR(%time%;"DD-MM-YYYY") + " " + TIMESTR(%time%;"HH:NN")
+  ENDIF
+
+ENDFUNCTION
+
+
+# TIME_SET %time% = last year
+# TIME_SET %time% = next day
+# TIME_SET %time% = current year
+# TIME_SET %time% = this hour
+
+#TIME_SET time = shift unit
+FUNCTION TIME_SET time = shift unit format
+
+  IF %shift$% + %unit$% == ""
+    DEF time = NOW
+  ENDIF
+
+  IF %shift$% != "" AND %unit$% == ""
+    VAR synonym
+    DEF synonym = %shift$%
+    IF POS("yesterday,gisteren";LOWERCASE(%synonym$%)) > 0
+      DEF time = TODAY - 1
+    ENDIF
+    IF POS("today,vandaag";LOWERCASE(%synonym$%)) > 0
+      DEF time = TODAY
+    ENDIF
+    IF POS("tomorrow,morgen";LOWERCASE(%synonym$%)) > 0
+      DEF time = TODAY + 1
+    ENDIF
+  ENDIF
+
+  IF %shift$% != "" AND %unit$% != ""
+
+    IF ISNUMBER(%shift$%)
+      DEF shift = VAL(%shift$%)
+    ENDIF
+
+    IF POS("last,past,vorig,vorige";LOWERCASE(%shift$%)) > 0
+      DEF shift = -1
+    ENDIF
+
+    IF POS("current,this,huidige,deze,dit";LOWERCASE(%shift$%)) > 0
+      DEF shift = 0
+    ENDIF
+
+    IF POS("next,coming,volgend,volgende,komend,komende";LOWERCASE(%shift$%)) > 0
+      DEF shift = 1
+    ENDIF
+
+    DEF time = NOW
+
+    TIME_ROUND %time% = %unit$%
+    TIME_SHIFT %time% = %shift$% %unit$%
+
+    IF POS("day,dag,days,dagen";LOWERCASE(%unit$%)) > 0
+    ENDIF
+
+  ENDIF
+
+  IF %format$% != ""
+    TIME_FORMAT %time% = %format$%
+  ENDIF
+
+ENDFUNCTION
+
+#VAR t
+#TIME_SET      %t%
+#TIME_SHIFT    %t% = -1 pte
+#TIME_ROUND    %t% = pte
+#TIME_FORMAT   %t% = "DBSTORE"
+#INFOLINE 1 %t$%
+
+#VAR st et
+#TIME_WINDOW %st% %et% = "WEEK"
+#TIME_FORMAT
+
+FUNCTION TIME_PARSE_DATE time = string
+
+  VAR a b c s[]
+  VAR separator[] s
+  DEF separator[0] = 4
+  DEF separator[1] = "."
+  DEF separator[2] = "-"
+  DEF separator[4] = "/"
+  FOR s = 1 TO %separator[0]%
+    MAKEARRAYOFSTRING s[] = %string$% %separator[s]$%
+    IF %s[0]% == 3
+      IF ISNUMBER(%s[1]$%) AND ISNUMBER(%s[2]$%) AND ISNUMBER(%s[3]$%)
+
+        DEF a = %s[1]%
+        DEF b = %s[2]%
+        DEF c = %s[3]%
+
+        IF %a% >= 1970 AND %a% <= 2030 AND %b% >= 1 AND %b% <= 12 AND %c% >= 1 AND %c% <= 31
+          DEF time = CREATEDATE(%a%;%b%;%c%)
+        ENDIF
+
+        IF %a% >= 1 AND %a% <= 31 AND %b% >= 1 AND %b% <= 12 AND %c% >= 1970 AND %c% <= 2030
+          DEF time = CREATEDATE(%c%;%b%;%a%)
+        ENDIF
+
+      ENDIF
+
+    ENDIF
+
+    IF %s[0]% == 2
+
+      IF ISNUMBER(%s[1]$%) AND ISNUMBER(%s[2]$%)
+
+        DEF a = %s[1]%
+        DEF b = %s[2]%
+
+        IF %a% >= 1970 AND %a% <= 2030 AND %b% >= 1 AND %b% <= 12
+          DEF time = CREATEDATE(%a%;%b%;1)
+        ENDIF
+
+        IF %a% >= 1 AND %a% <= 12 AND %b% >= 1970 AND %b% <= 2030
+          DEF time = CREATEDATE(%c%;%b%;1)
+        ENDIF
+
+      ENDIF
+
+    ENDIF
+
+  NEXT
+
+ENDFUNCTION
+
+FUNCTION TIME_PARSE_TIME time = string
+
+  VAR s[] a b c
+  MAKEARRAYOFSTRING s[] = %string$% ":"
+
+  IF %s[0]% == 2
+    IF ISNUMBER(%s[1]$%) AND ISNUMBER(%s[2]$%)
+      DEF a = %s[1]%
+      DEF b = %s[2]%
+      IF %a% >= 0 AND %a% <= 24 AND %b% >= 0 AND %b% <= 59
+        DEF time = TIMEFROMSTRING(%string$%;"hh:NN")
+      ENDIF
+    ENDIF
+  ENDIF
+
+  IF %s[0]% == 3
+    IF ISNUMBER(%s[1]$%) AND ISNUMBER(%s[2]$%) AND ISNUMBER(%s[3]$%)
+      DEF a = %s[1]%
+      DEF b = %s[2]%
+      DEF c = %s[3]%
+      IF %a% >= 0 AND %a% <= 24 AND %b% >= 0 AND %b% <= 59 AND %c% >= 0 AND %c% <= 59
+        DEF time = TIMEFROMSTRING(%string$%;"hh:NN:SS")
+      ENDIF
+    ENDIF
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION TIME_PARSE time = string
+
+  VAR s[]
+
+  # GEN script (e.g. 41397.4738967130)
+  IF ISNUMBER(%string$%) AND VAL(%string$%) > 35000 AND VAL(%string$%) < 55000
+    DEF time = %string%
+  ENDIF
+
+  # Time (14:30)
+  MAKEARRAYOFSTRING s[] = %string$% ":"
+  IF %s[0]% == 2 AND LENGTH(%string$%) >= 3 AND LENGTH(%string$%) <= 5
+    TIME_PARSE_TIME %time$% = %string$%
+    STOP
+  ENDIF
+
+  # Oracle time
+  MAKEARRAYOFSTRING s[] = %string$% " "
+  IF %s[0]% == 2
+    VAR d t
+    TIME_PARSE_DATE %d$% = %s[1]$%
+    TIME_PARSE_TIME %t$% = %s[2]$%
+    DEF time = %d% + %t%
+  ENDIF
+
+  # ISO
+  MAKEARRAYOFSTRING s[] = %string$% "T"
+  IF %s[0]% == 2
+    VAR ISOdate ISOtime ISOoffset
+
+    TIME_PARSE_DATE %ISOdate$% = %s[1]$%
+    DEF time = %ISOdate%
+
+    VAR t[]
+    MAKEARRAYOFSTRING t[] = %s[2]$% "+"
+    IF %t[0]% >= 1
+      TIME_PARSE_TIME %ISOtime$% = %t[1]$%
+      DEF time = %ISOdate% + %ISOtime%
+      IF %t[0]% == 2
+        VAR o[]
+        MAKEARRAYOFSTRING o[] = %t[2]$% ":"
+        IF %o[0]% >= 1
+          DEF ISOoffset = VAL(SUBSTR(%o[1]$%;1;2)) * 1/24
+          DEF time = %ISOdate% + %ISOtime% + %ISOoffset%
+        ENDIF
+      ENDIF
+    ENDIF
+  ENDIF
+
+  # Date only
+  VAR date
+  TIME_PARSE_DATE %date$% = %string$%
+  IF %date$% != ""
+    DEF time = %date%
+  ENDIF
+
+  # Time only
+  VAR time_
+  TIME_PARSE_TIME %time_$% = %string$%
+  IF %time_$% != "" AND ISNUMBER(%time_$%)
+    DEF time = %time_%
+  ENDIF
+
+  # Year
+  IF ISNUMBER(%string$%) AND LENGTH(%string$%) == 4 AND VAL(%string$%) >= 1970 AND VAL(%string$%) <= 2030
+    DEF time = CREATEDATE(%string$%;1;1)
+  ENDIF
+
+  # Unix time (e.g. 1390580009)
+  IF ISNUMBER(%string$%) AND LENGTH(%string$%) == 10 AND VAL(%string$%) > 900000000 AND VAL(%string$%) < 1800000000
+    DEF time = CREATEDATE(1970;1;1) + VAL(%string$%) / 60 / 60 / 24
+    DEF time = %time% + LOCALUTC(%time%) / 24
+  ENDIF
+
+  # JavaScript time (e.g. 1390580009000)
+  IF ISNUMBER(%string$%) AND LENGTH(%string$%) == 13 AND VAL(%string$%) > 900000000000 AND VAL(%string$%) < 1800000000000
+    DEF time = CREATEDATE(1970;1;1) + VAL(%string$%) / 60 / 60 / 24 / 1000
+    DEF time = %time% + LOCALUTC(%time%) / 24
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION TIME_PRINT time = format
+  VAR t
+  DEF t = %time$%
+  TIME_FORMAT %t$% = %format$%
+  INFOLINE 1 %t$%
+ENDFUNCTION
+
+#VAR start end
+#TIME_SET %start%
+#TIME_SET %end%
+#
+#TIME_SHIFT %start% = -4 PTE
+#TIME_SHIFT %end%   = +1 PTE
+#
+#TIME_ROUND %start% = PTE
+#TIME_ROUND %end%   = PTE
+#
+#TIME_FORMAT %start% = "DBIMPORT"
+#TIME_FORMAT %end%   = "DBIMPORT"
+#
+#INFOLINE 1 %start$%
+#INFOLINE 1 %end$%
+#
+#VAR t
+#TIME_PARSE %t% = 1390580009
+#TIME_FORMAT %t%
+#INFOLINE 1 %t$%
+
+
+# Date library which let's you work without worrying about formats...
+# Uses heuristics and fuzzy logic?
+# Day oriented!
+
+# Example formats:
+#
+# 1.  41397.4738967130 (GEN script)
+# 2.  01-01-2010 (NL)
+# 3.  01-01-2010-06:00 (Gas market)
+# 3.  01-01-2010 02:15 (Gas market)
+# 4.  2010.01.01 (GEN Worksheet)
+# 5.  12/31/2010 (US)
+# 6.  31/12/2010 (UK)
+# 7.  201001010000 (EDI)
+# 8.  1-1-2010 (Excel short)
+# 9.  2013-12-31 (ISO local date)
+# 10. 2013-01-01T23:00 (ISO local date and time)
+# 11. 2010-02-28T04:00+01:00 (ISO local date and time with timezone information)
+# 12. 2010-02-28T04:00Z (ISO local date and time in UTC)
+# 13. 1373615654009 (JavaScript time)
+# 14. 01-01-2010 23:59:59 (Oracle time)
+# 15. 12:40 (Time)
+
+#DATE_INPUT format
+#DATE_OUTPUT format
+# Give yesterday's date
+#DATE_YESTERDAY date
+#DATE_YEAR
+#DATE_MONTH
+#DATE_DAY
+#DATE_FIRSTDAYOFMONTH
+#DATE_FIRSTDAYOFYEAR
+#DATE_DIFFERENCE
+#DATE_BETWEEN isbetween = startdate enddate
+
+FUNCTION TIME_DIFF diff = time1 time2
+
+  VAR t1 t2
+
+  TIME_PARSE %t1% = %time1$%
+  TIME_PARSE %t2% = %time2$%
+
+  IF ISNUMBER(%t1$%) AND ISNUMBER(%t2$%)
+    DEF diff = ABS(%t1% - %t2%)
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION TIME_PTU ptu = time
+
+  VAR t
+  TIME_PARSE %t$% = %time$%
+
+  IF ISNUMBER(%t$%)
+    DEF t = %t% - FLOOR(%t%)
+    DEF ptu = FLOOR(ROUND((%t% / %TIME_PTU_FRACTION%) * 12) / 12 + 1)
+  ENDIF
+
+ENDFUNCTION
+

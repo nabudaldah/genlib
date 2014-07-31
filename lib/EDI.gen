@@ -1,0 +1,518 @@
+#############################################################################################################################
+#  G E N  N e d e r l a n d  BV
+#############################################################################################################################
+#
+#  Library         : Library for EDI message processing
+#
+#  Customer        : GEN
+#  Environment     :
+#  Trigger         :
+#  Author          : NA
+#  Date            : 05-04-2013
+#  Version         : 0.13
+#  Info            : nabi.abudaldah@gen.nl
+#  GENnumber       :
+#
+#  Input           :
+#  Inputloc        :
+#  Input2          :
+#  Inputloc2       :
+#  Output1         :
+#  Outputloc1      :
+#
+#  Function                                         Comment
+#  ----------------------------------------------   ----------------------------------
+#  EDI_LOAD filename                                Load EDI file
+#  EDI_COUNT count = segment                        Count segments
+#  EDI_ENTER segment count                          Narrow scope, enter into specific segment group
+#  EDI_EXIT                                         Widen scope, exit current segment group
+#  EDI_GET value = query element component          Get value of a segment by free-form text, e.g. "NAD+IT" or "CAV+++E17"
+#  EDI_SEEK segment                                 Point at next segment
+#  EDI_GETNEXT value = segment element component    Get value of next segment
+#  EDI_FILL s1 s2 s3 ... s16                        Search for pattern (s1, s3, s5 ... 15) and fill variables (s2, s4, s6 ... s16)
+#  EDI_NEW                                          Create new EDI message
+#  EDI_ADD s1 s2 s3 ... s16                         Append strings s1 s2 s3 ... s16 to current new message
+#  EDI_CADD s1 s2 s3 ... s16                        Conditionally append s1 s2 s3 ... s16 to current new message (only when one of s2 s4 s6 ... s16 is filled)
+#  EDI_SAVE filename                                Save current new message to file
+#  EDI_AUTOLF disable                               Enable auto line-feed after each EDI_ADD or EDI_CADD. Disable by setting optional argument disable.
+#
+#  Revisions:
+#  Author              Date            Version Concerns/Changes
+#  -------             --------------- ------- -----------------------
+#  NA                  03-03-2013      0.10    Iteration 10.
+#  NA                  12-03-2013      0.11    Added EDI_FILL and DEBUG functions.
+#  NA                  21-03-2013      0.12    Added EDI_NEW, EDI_ADD, EDI_CADD and EDI_SAVE. Removed DEBUG functions.
+#  NA                  05-04-2013      0.13    Added EDI_AUTOLF function. Corrected EDI_SAVE behaviour.
+#
+#############################################################################################################################
+
+# EDI container
+VAR_EDI EDI_FILECONTENT
+
+# Quick pointer
+VAR EDI_POINTER
+
+# Hierarchy administration
+VAR EDI_LEVEL
+VAR EDI_TOKEN[]
+VAR EDI_START[]
+VAR EDI_END[]
+VAR EDI_COUNT[]
+VAR EDI_TAIL[]
+
+# Set default values
+DEF EDI_LEVEL              = 0
+DEF EDI_TOKEN[%EDI_LEVEL%] = ""
+DEF EDI_START[%EDI_LEVEL%] = 0
+DEF EDI_END[%EDI_LEVEL%]   = 0
+DEF EDI_COUNT[%EDI_LEVEL%] = 0
+DEF EDI_TAIL[%EDI_LEVEL%]  = 0
+
+# Segment closures
+VAR EDI_CLOSURE[]
+
+# Message building container
+VAR EDI_NEWMESSAGE EDI_NEWSEGMENTS
+
+# EDI closure tokens
+DEF EDI_CLOSURE[1] = "UNB UNZ"
+DEF EDI_CLOSURE[2] = "UNH UNT"
+
+# Line feed character
+VAR EDI_LF
+
+# Enable line-feed in EDI_ADD (and EDI_CADD)
+FUNCTION EDI_AUTOLF disable
+  IF %disable$% != ""
+    DEF EDI_LF = ""
+  ELSE
+    SAVEFILETEXT "*" " " 1
+    LOADFILETEXT EDI_LF = "*"
+    DEF EDI_LF = SUBSTR(%EDI_LF$%;2;1)
+  ENDIF
+ENDFUNCTION
+
+# Load EDI file
+FUNCTION EDI_LOAD filename
+
+  VAR str i test pointer
+
+  # Check filename
+  IF LENGTH(%filename$%) == 0
+    ERRORLINE 1 "EDI_LOAD: Missing filename parameter."
+  ENDIF
+
+  # Check if file exists
+  IF NOT FILEEXISTS(%filename$%)
+    ERRORLINE 1 "EDI_LOAD: Input file does not exist."
+  ENDIF
+
+  # Load file into memory
+  LOADFILETEXT EDI_FILECONTENT = %filename$%
+
+  # Check syntax and checksum of EDI file
+  CHECKEDISYNTAX test = EDI_FILECONTENT
+  IF %test% < 0
+    LOGLINE 1 "EDI_LOAD: Warning: syntax failed."
+  ENDIF
+
+  # Determine number of segments (only 1 batch file supported.)
+  SCANTEXTSEGMENT test str = EDI_FILECONTENT 0 "" "UNZ" 0 0
+  IF %test% <= 0
+    ERRORLINE 1 "EDI_LOAD: File corrupt."
+  ENDIF
+  DEF pointer = %test%
+
+  DEF EDI_LEVEL              = 1
+  DEF EDI_TOKEN[%EDI_LEVEL%] = ""
+  DEF EDI_START[%EDI_LEVEL%] = 1
+  DEF EDI_END[%EDI_LEVEL%]   = %pointer%
+  DEF EDI_COUNT[%EDI_LEVEL%] = %pointer%
+  DEF EDI_TAIL[%EDI_LEVEL%]  = 0
+
+ENDFUNCTION
+
+# Count segments
+FUNCTION EDI_COUNT count = segment
+
+  VAR test str
+
+  DEF test = %EDI_START[EDI_LEVEL]%
+  DEF count = 0
+
+  WHILE %test% >= 0 AND %test% <= %EDI_END[EDI_LEVEL]%
+    SCANTEXTSEGMENT test str = EDI_FILECONTENT %test% "" %segment$% 0 0
+    IF %test% >= 0 AND %test% <= %EDI_END[EDI_LEVEL]%
+      INC count
+      INC test
+    ENDIF
+  ENDWHILE
+
+ENDFUNCTION
+
+# Enter into a segment group
+FUNCTION EDI_ENTER segment count
+
+  VAR array[] closure tail cut
+  VAR counter str
+  VAR done test pointer i j
+  VAR startpointer endpointer newlevel
+
+  IF LENGTH(%segment$%) == 0
+    ERRORLINE 1 "EDI_ENTER: No segment parameter given."
+  ENDIF
+
+  IF LENGTH(%count$%) == 0
+    DEF count = 1
+  ELSE
+    IF NOT ISNUMBER(%count$%) OR %count% < 1
+      ERRORLINE 1 "EDI_ENTER: Illegal count parameter."
+    ENDIF
+  ENDIF
+
+  # Search for start
+  DEF counter = 0
+  DEF test = %EDI_START[EDI_LEVEL]%
+  FOR j = 1 TO %count%
+    SCANTEXTSEGMENT test str = EDI_FILECONTENT %test% "" %segment$% 0 0
+    IF %test% >= 0 AND %test% <= %EDI_END[EDI_LEVEL]%
+      DEF pointer = %test%
+      INC test
+      INC counter
+      IF %counter% == %count%
+        # We have arrived at the right count of token
+      ENDIF
+    ELSE
+      # Segment not found
+      ERRORLINE 1 "EDI_ENTER: Segment not found."
+    ENDIF
+  NEXT
+
+  # Save selection start point
+  DEF startpointer = %pointer%
+
+  # Save the EDI_POINTER for EDI_NEXT
+  DEF EDI_POINTER = %pointer%
+
+  # See if current segment has a closure
+  DEF str = %segment$% + "*"
+  FINDTEXTINARRAY test = EDI_CLOSURE[] %str$% 1 1 %EDI_CLOSURE[0]%
+  IF %test% >= 0
+    MAKEARRAYOFSTRING array[] = %EDI_CLOSURE[test]$% " "
+    SCANTEXTSEGMENT test str = EDI_FILECONTENT %pointer% "" %array[2]$% 0 0
+    IF %test% >= 0 AND %test% <= %EDI_END[EDI_LEVEL]%
+      DEF segment = %array[2]$%
+      DEF closure = true
+    ELSE
+      DEF closure = false
+    ENDIF
+  ENDIF
+
+  # Cut (closure) tail if necessary
+  IF %closure%
+    DEF tail = 1
+    DEF cut  = 0
+  ELSE
+    DEF tail = 0
+    DEF cut  = 1
+  ENDIF
+
+  # Start search at next element
+  INC pointer
+
+  # Now go and find next segment
+  SCANTEXTSEGMENT test str = EDI_FILECONTENT %pointer% "" %segment$% 0 0
+  IF %test% >= 0 AND %test% <= %EDI_END[EDI_LEVEL]%
+    DEF pointer = %test% - %cut%
+    DEF done = true
+  ELSE
+    DEF done = true
+    DEF pointer = %EDI_END[EDI_LEVEL]% - %EDI_TAIL[EDI_LEVEL]%
+  ENDIF
+
+  # Save endpointer
+  DEF endpointer = %pointer%
+
+  # Set global variables
+  INC EDI_LEVEL
+  DEF EDI_TOKEN[%EDI_LEVEL%] = %segment$%
+  DEF EDI_START[%EDI_LEVEL%] = %startpointer%
+  DEF EDI_END[%EDI_LEVEL%]   = %endpointer%
+  DEF EDI_COUNT[%EDI_LEVEL%] = %endpointer% - %startpointer% + 1
+  DEF EDI_TAIL[%EDI_LEVEL%]  = %tail%
+
+ENDFUNCTION
+
+# Exit current segment group
+FUNCTION EDI_EXIT
+  IF %EDI_LEVEL% == 1
+    ERRORLINE 1 "EDI_EXIT: Trying to exit highest hierarchical EDI_LEVEL."
+  ENDIF
+  INC EDI_LEVEL -1
+ENDFUNCTION
+
+# Get value of a segment
+FUNCTION EDI_GET value = segment element component
+
+  VAR array[] test done str query
+  DEF query = %segment$%
+
+  # Check segment parameter
+  IF LENGTH(%segment$%) == 0
+    ERRORLINE 1 "EDI_GET: Missing segment parameter."
+  ENDIF
+
+  # Check element parameter
+  IF LENGTH(%element$%) == 0
+    DEF element = 0
+  ELSE
+    IF NOT ISNUMBER(%element$%) OR %element% < 0
+      ERRORLINE 1 "EDI_GET: Invalid element index parameter."
+    ENDIF
+  ENDIF
+
+  # Check component parameter
+  IF LENGTH(%component$%) == 0
+    DEF component = 0
+  ELSE
+    IF NOT ISNUMBER(%component$%) OR %component% < 0
+      ERRORLINE 1 "EDI_GET: Invalid component index parameter."
+    ENDIF
+  ENDIF
+
+  # Explode query
+  MAKEARRAYOFSTRING array[] = %query$% "+"
+
+  DEF segment = %array[1]$%
+  DEF test    = %EDI_START[EDI_LEVEL]%
+  DEF done    = false
+  DEF value   = ""
+
+  IF LENGTH(%query$%) == 0 OR %array[0]% <= 0
+    ERRORLINE 1 "EDI_GET: Missing query parameter."
+  ENDIF
+
+  IF %array[0]% == 1
+    # We have only one segment
+    SCANTEXTSEGMENT test str = EDI_FILECONTENT %test% "" %segment$% %element% %component%
+    IF %test% >= 0 AND %test% <= %EDI_END[EDI_LEVEL]%
+      DEF value = %str$%
+    ENDIF
+  ELSE
+    # We have two or more segments ("free form query")
+    WHILE NOT %done%
+      SCANTEXTSEGMENT test str = EDI_FILECONTENT %test% "" %segment$% 0 0
+      IF %test% >= 0 AND %test% <= %EDI_END[EDI_LEVEL]%
+        IF POS(%str$%;%query$%) > 0
+          SCANTEXTSEGMENT test str = EDI_FILECONTENT %test% "" %segment$% %element% %component%
+          DEF value = %str$%
+          DEF done = true
+          BREAK
+        ELSE
+          INC test
+        ENDIF
+      ELSE
+        DEF done = true
+        BREAK
+      ENDIF
+    ENDWHILE
+  ENDIF
+
+  # Reset original segment query
+  DEF segment = %query$%
+
+ENDFUNCTION
+
+# Point at next segment (tested for large time-series)
+FUNCTION EDI_SEEK segment
+  IF LENGTH(%segment$%) == 0
+    ERRORLINE 1 "EDI_SEEK: Missing segment parameter."
+  ENDIF
+
+  VAR test str
+  INC EDI_POINTER
+  SCANTEXTSEGMENT test str = EDI_FILECONTENT %EDI_POINTER% "" %segment$% 0 0
+  IF %test% >= %EDI_START[EDI_LEVEL]% AND %test% <= %EDI_END[EDI_LEVEL]%
+    DEF EDI_POINTER = %test%
+  ENDIF
+ENDFUNCTION
+
+# Get value of next segment (tested for large time-series)
+FUNCTION EDI_GETNEXT value = segment element component
+  IF LENGTH(%segment$%) == 0
+    ERRORLINE 1 "EDI_GETNEXT: Missing segment parameter."
+  ENDIF
+
+  # Check element parameter
+  IF LENGTH(%element$%) == 0
+    DEF element = 1
+  ELSE
+    IF NOT ISNUMBER(%element$%) OR %element% < 1
+      ERRORLINE 1 "EDI_GETNEXT: Invalid element index parameter."
+    ENDIF
+  ENDIF
+
+  # Check component parameter
+  IF LENGTH(%component$%) == 0
+    DEF component = 1
+  ELSE
+    IF NOT ISNUMBER(%component$%) OR %component% < 1
+      ERRORLINE 1 "EDI_GETNEXT: Invalid component index parameter."
+    ENDIF
+  ENDIF
+
+  VAR test str
+  DEF value = ""
+  INC EDI_POINTER
+  SCANTEXTSEGMENT test str = EDI_FILECONTENT %EDI_POINTER% "" %segment$% %element% %component%
+  IF %test% >= %EDI_START[EDI_LEVEL]% AND %test% <= %EDI_END[EDI_LEVEL]%
+    DEF EDI_POINTER = %test%
+    DEF value = %str$%
+  ENDIF
+
+ENDFUNCTION
+
+# Fill in variable values from segment
+#   a1, a3, a5 ... a15 are text patterns
+#   a2, a4, a6 ... a16 will be filled with data from EDI file
+FUNCTION EDI_FILL a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11 a12 a13 a14 a15 a16
+
+  # Check if segment identifier has been given
+  IF %a1$% == ""
+    ERRORLINE 1 "EDI_FILL: Missing segment identifier."
+  ENDIF
+
+  # Local variables
+  VAR delimiter[] a[] string i done k l m
+
+  # Delimiters (EDI)
+  DEF delimiter[0] = 3
+  DEF delimiter[1] = ":"
+  DEF delimiter[2] = "+"
+  DEF delimiter[3] = "'"
+
+  # Create array for easier looping (functions take scalars only)
+  DEF a[0] = 16
+  DEF a[1] = %a1$%
+  DEF a[2] = %a2$%
+  DEF a[3] = %a3$%
+  DEF a[4] = %a4$%
+  DEF a[5] = %a5$%
+  DEF a[6] = %a6$%
+  DEF a[7] = %a7$%
+  DEF a[8] = %a8$%
+  DEF a[9] = %a9$%
+  DEF a[10] = %a10$%
+  DEF a[11] = %a11$%
+  DEF a[12] = %a12$%
+  DEF a[13] = %a13$%
+  DEF a[14] = %a14$%
+  DEF a[15] = %a15$%
+  DEF a[16] = %a16$%
+
+  # Reset all input variables
+  FOR i = 2 TO 16
+    DEF a[%i%] = ""
+    INC i
+  NEXT
+
+  # Select segment based on a1 (uniquely identifies the segment)
+  EDI_GET %string$% = %a[1]$%
+
+  # Loop over all arguments
+  DEF i = 1
+  DEF done = false
+  WHILE NOT %done%
+
+    # In case of a mis-match, escape out of loop
+    IF ( %i% MOD 2 ) == 1 AND %a[i]$% != SUBSTR(%string$%;1;LENGTH(%a[i]$%))
+      DEF done = true
+      BREAK
+    ENDIF
+
+    # If parameter is empty and is expected to be filled
+    IF ( %i% MOD 2 ) == 0
+
+      # Find next delimiter (stop at : + or ')
+      DEF m = LENGTH(%string$%)
+      FOR k = 1 TO %delimiter[0]%
+        DEF l = POS(%string$%;%delimiter[k]$%)
+        IF %l% > 0 AND %l% < %m%
+          DEF m = %l%
+        ENDIF
+      NEXT
+      INC m -1
+
+      # Extract data into variable
+      DEF a[%i%] = SUBSTR(%string$%;1;%m%)
+
+    ENDIF
+
+    # Cut-off extracted data or constat
+    DEF k = LENGTH(%a[i]$%) + 1
+    DEF l = LENGTH(%string$%) - %k% + 1
+    DEF string = SUBSTR(%string$%;%k%;%l%)
+
+    # Quit loop when string is empty or after running over all parameters
+    IF %string$% == "" OR %i% >= %a[0]%
+      DEF done = true
+      BREAK
+    ENDIF
+
+    # Increase counter
+    INC i
+
+  ENDWHILE
+
+  # Fill output variables
+  DEF a2 = %a[2]$%
+  DEF a4 = %a[4]$%
+  DEF a6 = %a[6]$%
+  DEF a8 = %a[8]$%
+  DEF a10 = %a[10]$%
+  DEF a12 = %a[12]$%
+  DEF a14 = %a[14]$%
+  DEF a16 = %a[16]$%
+
+ENDFUNCTION
+
+# Initiate new message
+FUNCTION EDI_NEW
+  DEF EDI_NEWSEGMENTS = 0
+  DEF EDI_NEWMESSAGE = ""
+ENDFUNCTION
+
+# Add line to message
+FUNCTION EDI_ADD s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
+
+  DEF EDI_NEWMESSAGE = %EDI_NEWMESSAGE$% + %s1$% + %s2$% + %s3$% + %s4$% + %s5$% + %s6$% + %s7$% + %s8$% + %s9$% + %s10$% + %s11$% + %s12$% + %s13$% + %s14$% + %s15$% + %s16$% + %EDI_LF$%
+
+  # Increase message segment counter
+  IF %EDI_NEWSEGMENTS%
+    INC EDI_NEWSEGMENTS
+  ENDIF
+
+  # Start counting at start of message
+  IF SUBSTR(%s1$%;1;3) == "UNH"
+    DEF EDI_NEWSEGMENTS = 1
+  ENDIF
+
+ENDFUNCTION
+
+# Conditional add: only when one even-input is filled
+FUNCTION EDI_CADD s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
+  IF %s2$% + %s4$% + %s6$% + %s8$% + %s10$% + %s12$% + %s14$% + %s16$% != ""
+    EDI_ADD %s1$% %s2$% %s3$% %s4$% %s5$% %s6$% %s7$% %s8$% %s9$% %s10$% %s11$% %s12$% %s13$% %s14$% %s15$% %s16$%
+  ENDIF
+ENDFUNCTION
+
+# Save EDI message to file
+FUNCTION EDI_SAVE filename
+
+  SAVEFILETEXT %filename$% %EDI_NEWMESSAGE$%
+
+  IF NOT FILEWRITEABLE(%filename$%)
+    LOGLINE 1 "EDI_SAVE: Warning: output file not written."
+  ENDIF
+
+ENDFUNCTION

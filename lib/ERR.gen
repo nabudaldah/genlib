@@ -1,0 +1,621 @@
+# ---------------------------------------------------------------------------------------------------------------------------
+#  Script      : GENERAL_ERROR_MAPPING
+#                All functions in this error handling library should have the prefix ERR_ and
+#                be followed by the exact name of the eBase script command of which the error
+#                text is being returned.
+#
+#  Client      : General
+#  Environment :
+#  Trigger     : Event (triggered function call)
+#  Author      : NA
+#  Date        : 02-07-2013
+#  Version     : 1.0
+#  Info        : servicedesk@gen.nl
+#  GENnr       : S1556
+#
+#           Input      :
+#           Inputloc   :
+#           Output1    :
+#           Outputloc1 :
+#
+#  Revisions:
+#  Author    Date       Version  Betreft
+#  -------  ----------  ------   -------
+#  NA       25-02-2013  0.1     Initial version
+#  JO       05-04-2013  0.9     Ready for acceptance
+#  WT       02-07-2013  1.0     Ready for production
+# ---------------------------------------------------------------------------------------------------------------------------
+# Script commands:
+# DBIMPORT
+# DBCREATESNAPSHOT
+# DBSETSNAPSHOTINFO
+# DBDBGETSNAPSHOTLIST
+# DBSTORE
+# DBCREATEPORTFOLIOSEGMENT
+# DBCREATECUSTOMERPORTFOLIO
+# DBCREATEPORTFOLIOCONTRACT
+# DBUPDATE
+# DBCREATEOBLIGATION
+# DBSAVEPORTFOLIOREPORT
+# DBIMPORTPORTFOLIOREPORT
+# DBCREATEPURCHASEORDER
+# DBCREATEMETER
+# DBCREATEVIRTUALMETER
+# DBSETMETERGROUP
+# DBDELETEMETERGROUPS
+# ---------------------------------------------------------------------------------------------------------------------------
+# Howto:
+#
+# VAR error_text error_nr
+# DEF error_nr = -6
+#
+# ERR_DBIMPORT %error_text$% = %error_nr%
+#
+# INFOLINE 1 %error_text$%
+
+# Functions:
+#
+# ERR_DBIMPORT outputErrorText = inputErrorNumber
+
+FUNCTION ERR_DBIMPORT outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully imported data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully imported data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[3]  = "code or object type or version or portfolio curve code or forecast model not found"
+    DEF errorText[4]  = "sign invalid"
+    DEF errorText[5]  = "date format invalid"
+    DEF errorText[6]  = "time format invalid"
+    DEF errorText[7]  = "import type invalid"
+    DEF errorText[8]  = "start date-time invalid"
+    DEF errorText[9]  = "end date-time invalid"
+    DEF errorText[10] = "interval invalid"
+    DEF errorText[11] = "date-time columns method invalid"
+    DEF errorText[12] = "scale invalid"
+    DEF errorText[13] = "change method invalid"
+    DEF errorText[14] = "values invalid"
+    DEF errorText[15] = "status or STDDEV invalid"
+    DEF errorText[16] = "meter administration or portfolio administration or group filter invalid"
+    DEF errorText[17] = "segment structure invalid"
+    DEF errorText[18] = "unit invalid"
+    DEF errorText[19] = "name invalid"
+    DEF errorText[20] = "total invalid"
+    DEF errorText[21] = "grid error"
+    DEF errorText[22] = "rounding type invalid"
+    DEF errorText[23] = "decimals invalid"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+FUNCTION ERR_DBCREATESNAPSHOT outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully imported data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully created snapshot"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]  = "invalid code (does not start with an S or contains an underscore, snapshot not created)"
+    DEF errorText[2]  = "invalid data type"
+    DEF errorText[3]  = "invalid interval "
+    DEF errorText[4]  = "invalid period "
+    DEF errorText[5]  = "administration not found"
+    DEF errorText[6]  = "segment not found "
+    DEF errorText[7]  = "time series code not found"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+  IF %inputErrorNumber% > 0
+
+    DEF indexNumber = %inputErrorNumber%
+
+    DEF errorText[1]  = "snapshot code already exists"
+    DEF errorText[2]  = "time series code not found "
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+FUNCTION ERR_DBSETSNAPSHOTINFO outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully imported data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully imported data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]  = "snapshot code not found"
+    DEF errorText[2]  = "invalid information type"
+    DEF errorText[3]  = "invalid information value"
+    DEF errorText[4]  = "invalid object type"
+    DEF errorText[5]  = "administration not found"
+    DEF errorText[6]  = "segment not found"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+  IF %inputErrorNumber% > 0
+
+    DEF indexNumber = %inputErrorNumber%
+
+    DEF errorText[1]  = "new snapshot code already exists"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBDBGETSNAPSHOTLIST outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully imported data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully imported data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]  = "time series type invalid"
+    DEF errorText[2]  = "time series code not found"
+    DEF errorText[3]  = "snapshot state invalid"
+    DEF errorText[4]  = "data period invalid"
+    DEF errorText[5]  = "creation period invalid"
+    DEF errorText[6]  = "time offset invalid"
+    DEF errorText[7]  = "snapshot code invalid"
+    DEF errorText[8]  = "administration not found"
+    DEF errorText[9]  = "segment structure not found"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBSTORE outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully stored data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[3]   = "code or object type or version or portfolio curve code or forecast model not found"
+    DEF errorText[4]   = "prognosis administration or portfolio administration invalid"
+    DEF errorText[5]   = "segment structure"
+    DEF errorText[6]   = "store type invalid"
+    DEF errorText[7]   = "grid X-Y selection invalid"
+    DEF errorText[8]   = "selection invalid"
+    DEF errorText[9]   = "date format invalid"
+    DEF errorText[10]  = "interval invalid"
+    DEF errorText[11]  = "date-time columns method invalid"
+    DEF errorText[12]  = "scale invalid"
+    DEF errorText[13]  = "change method invalid"
+    DEF errorText[14]  = "auto-commit invalid"
+    DEF errorText[15]  = "start date-time invalid"
+    DEF errorText[16]  = "end date-time invalid"
+    DEF errorText[17]  = "unit invalid"
+    DEF errorText[18]  = "grid error"
+    DEF errorText[19]  = "status invalid"
+    DEF errorText[20]  = "rounding type invalid"
+    DEF errorText[21]  = "decimals invalid"
+    DEF errorText[22]  = "no valid dates found"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+
+FUNCTION ERR_DBCREATEPORTFOLIOSEGMENT outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully stored data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]   = "administration not found"
+    DEF errorText[2]   = "invalid segment code"
+    DEF errorText[3]   = "parent segment not found"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+FUNCTION ERR_DBCREATECUSTOMERPORTFOLIO outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully stored data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]  = "customer portfolio code already exists"
+    DEF errorText[2]  = "invalid portfolio administration"
+    DEF errorText[3]  = "invalid portfolio segment"
+    DEF errorText[4]  = "invalid start date"
+    DEF errorText[5]  = "invalid end date"
+    DEF errorText[6]  = "applicable user role not available"
+    DEF errorText[7]  = "invalid tariff"
+    DEF errorText[8]  = "invalid period"
+    DEF errorText[9]  = "conflicting state of related object"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+FUNCTION ERR_DBCREATEPORTFOLIOCONTRACT outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully stored data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]  = "contract code already exists"
+    DEF errorText[2]  = "invalid customer portfolio"
+    DEF errorText[3]  = "invalid type"
+    DEF errorText[4]  = "invalid start date"
+    DEF errorText[5]  = "invalid end date"
+    DEF errorText[6]  = "invalid direction"
+    DEF errorText[7]  = "top contract code doesn’t exist"
+    DEF errorText[8]  = "invalid top contract"
+    DEF errorText[9]  = "invalid tariff"
+    DEF errorText[10]  = "invalid period"
+    DEF errorText[11]  = "conflicting state of related object"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+FUNCTION ERR_DBUPDATE outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully stored data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]  = "database record invalid"
+    DEF errorText[2]  = "complex record variable invalid"
+    DEF errorText[3]  = "complex record variable not found or not updatable"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+FUNCTION ERR_DBCREATEOBLIGATION outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "successfully stored data"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]  = "obligation code already exists"
+    DEF errorText[2]  = "invalid cost product code"
+    DEF errorText[3]  = "invalid contract code"
+    DEF errorText[4]  = "invalid profile type"
+    DEF errorText[5]  = "invalid start date"
+    DEF errorText[6]  = "invalid end date"
+    DEF errorText[7]  = "invalid click type"
+    DEF errorText[8]  = "invalid period"
+    DEF errorText[9]  = "invalid direction"
+    DEF errorText[10]  = "invalid purchase order code"
+    DEF errorText[11]  = "invalid state of related object"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBSAVEPORTFOLIOREPORT outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "all ok (report successfully saved)"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]   = "report code invalid or already in use for other administration"
+    DEF errorText[2]   = "administration not found"
+    DEF errorText[3]   = "save in database invalid"
+    DEF errorText[4]   = "select maximum invalid"
+    DEF errorText[5]   = "select object invalid"
+    DEF errorText[6]   = "select state invalid"
+    DEF errorText[7]   = "condition active invalid"
+    DEF errorText[8]   = "condition logic invalid"
+    DEF errorText[9]   = "condition object invalid"
+    DEF errorText[10]  = "condition field invalid"
+    DEF errorText[11]  = "condition compare type invalid"
+    DEF errorText[12]  = "condition value invalid"
+    DEF errorText[13]  = "condition case sensitive invalid"
+    DEF errorText[14]  = "condition direction invalid"
+    DEF errorText[15]  = "columns invalid"
+    DEF errorText[16]  = "curves active invalid"
+    DEF errorText[17]  = "curve settings start date invalid"
+    DEF errorText[18]  = "curve settings end date invalid"
+    DEF errorText[19]  = "curve settings time offset invalid"
+    DEF errorText[20]  = "curve settings interval invalid"
+    DEF errorText[21]  = "curve settings period direction invalid"
+    DEF errorText[22]  = "curve settings curve direction invalid"
+    DEF errorText[23]  = "curve settings tariff direction invalid"
+    DEF errorText[24]  = "curve settings tariff structure not found"
+    DEF errorText[25]  = "curve settings tariff component not found"
+    DEF errorText[26]  = "curve settings force recalculation invalid"
+    DEF errorText[27]  = "curves active curve code not found"
+    DEF errorText[28]  = "curves calculation invalid"
+    DEF errorText[29]  = "curves unit invalid"
+    DEF errorText[30]  = "group active invalid"
+    DEF errorText[31]  = "group rows only invalid"
+    DEF errorText[32]  = "group condition object invalid"
+    DEF errorText[33]  = "group condition field invalid"
+    DEF errorText[34]  = "group condition direction"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBIMPORTPORTFOLIOREPORT outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "all ok (report successfully imported)"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]   = "report code not found"
+    DEF errorText[2]   = "cache or database invalid"
+    DEF errorText[3]   = "start row invalid"
+    DEF errorText[4]   = "period start date invalid"
+    DEF errorText[5]   = "period end date invalid"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBCREATEPURCHASEORDER outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "all ok"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]   = "purchase order code already exists"
+    DEF errorText[2]   = "invalid cost product code"
+    DEF errorText[3]   = "invalid contract code"
+    DEF errorText[4]   = "invalid start date"
+    DEF errorText[5]   = "invalid end date"
+    DEF errorText[6]   = "invalid order type"
+    DEF errorText[7]   = "invalid direction"
+    DEF errorText[8]   = "invalid period"
+    DEF errorText[9]   = "conflicting state of related object"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBCREATEMETER outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "all ok"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%) + 2
+
+    DEF errorText[1]   = "type, subtype or product does not exist"
+    DEF errorText[2]   = ""
+    DEF errorText[3]   = "meter code already exists or empty"
+    DEF errorText[4]   = "gridpoint EANCode does not exist"
+    DEF errorText[5]   = "gridpoint has different physical product"
+    DEF errorText[6]   = "interval invalid"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBCREATEVIRTUALMETER outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "all ok"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%) + 2
+
+    DEF errorText[1]   = "calculation type invalid"
+    DEF errorText[2]   = ""
+    DEF errorText[3]   = "meter code already exists"
+    DEF errorText[4]   = "administration unknown or not virtual"
+    DEF errorText[5]   = "segment unknown within given administration or domain unknown"
+    DEF errorText[6]   = "invalid force complete recalculation"
+    DEF errorText[7]   = "invalid or non allowed source schema name"
+    DEF errorText[8]   = "invalid or non allowed source meter type"
+    DEF errorText[9]   = "source meter not found, or non allowed meter"
+    DEF errorText[10]  = "formula code not found"
+    DEF errorText[11]  = "interval invalid"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBSETMETERGROUP outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "all ok"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]   = "meter unknown or not telemetric or virtual"
+    DEF errorText[2]   = "invalid date(s)"
+    DEF errorText[3]   = "group unknown"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION ERR_DBDELETEMETERGROUPS outputErrorText = inputErrorNumber
+
+  VAR errorText[] indexNumber
+
+  # successfully stored data from database
+  IF %inputErrorNumber% == 0
+    DEF outputErrorText = "all ok"
+  ENDIF
+
+  # failed to import data from database
+  IF %inputErrorNumber% < 0
+
+    DEF indexNumber = ABS(%inputErrorNumber%)
+
+    DEF errorText[1]   = "meter unknown or not telemetric or virtual"
+    DEF errorText[2]   = "invalid date(s)"
+    DEF errorText[3]   = "group unknown"
+
+    DEF outputErrorText = %errorText[indexNumber]$%
+
+  ENDIF
+
+ENDFUNCTION
+
+
+#-------------------------------------------------------------------------------
+# END OF SCRIPT
+#-------------------------------------------------------------------------------
+

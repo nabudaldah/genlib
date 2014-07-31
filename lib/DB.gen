@@ -1,0 +1,320 @@
+###########################################################################################
+#  G E N  N e d e r l a n d  BV                                                           #
+###########################################################################################
+#                                                                                         #
+#  DB Library for database manipulation                                                   #
+#                                                                                         #
+#  Author          : NA                                                                   #
+#  Date            : 16-05-2013                                                           #
+#  Version         : 0.03                                                                 #
+#  Info            : nabi.abudaldah@gen.nl                                                #
+#  Compatability   : eBase 6.1.9 tested                                                   #
+#                                                                                         #
+#  Function                                         Comment                               #
+#  ----------------------------------------------   --------------------------------------#
+#  DB_QUERY q1 q2 ... q20                           Query database using SQL              #
+#  DB_GET table                                     Load table into memory                #
+#  DB_FILTER text                                   Only keep rows containing text        #
+#  DB_GRID noheader                                 Show current table in grid            #
+#  DB_TABLES tables                                 Get all tables in current schema     #
+#  DB_COLUMNS columns = table                       Get all columns of table             #
+#  DB_SAVESCRIPT filename = scriptnr                Save a script from database to file   #
+#  DB_BACKUP_PROCESS_SCRIPTS directory              Save Monitor processes                #
+#  DB_BACKUP_LIBRARY_SCRIPTS directory              Save Script Library                   #
+#                                                                                         #
+#  Author  Date            Version Comments                                               #
+#  ------- --------------- ------- -------------------------------------------------------#
+#  NA      15-05-2013      0.03    Iteration 3.                                           #
+#                                                                                         #
+###########################################################################################
+
+# Global variables
+VAR DB_MAXROWS
+VAR DB_TABLE
+VAR DB_ROWS
+VAR DB_COLUMNS
+VAR DB_COLUMN[]
+VAR DB_DATA[][]
+
+# Maximum rows fetched at once
+DEF DB_MAXROWS = 1000
+
+# Query database (q1 ... q20 are appended for easier operation)
+FUNCTION DB_QUERY q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q11 q12 q13 q14 q15 q16 q17 q18 q19 q20
+
+  # Variables
+  VAR query err
+
+  # Query
+  DEF query = %q1$% + %q2$% + %q3$% + %q4$% + %q5$% + %q6$% + %q7$% + %q8$% + %q9$% + %q10$% + %q11$% + %q12$% + %q13$% + %q14$% + %q15$% + %q16$% + %q17$% + %q18$% + %q19$% + %q20$%
+
+  # Clear grid area and execute SQL query (uses grid area)
+  NEWGRID 1 1 1024
+  DBSQLSELECT err = 1 1 %query$% %DB_MAXROWS$%
+
+ENDFUNCTION
+
+# Load table from database
+FUNCTION DB_GET table
+
+  # Variables
+  VAR columns
+
+  # Oracle specific SQL statement to get column names of table
+  DB_QUERY "SELECT column_name FROM user_tab_columns WHERE table_name = '" %table$% "'"
+
+  # Save table name
+  DEF DB_TABLE = %table$%
+
+  #  Save column names
+  DEF DB_COLUMNS = %LASTROW%
+  READVECTORFROMGRID DB_COLUMN[] = 1 1 0 1 1 %DB_COLUMNS%
+
+  # Get table data
+  MAKESTRINGOFARRAY columns = DB_COLUMN[] %DB_COLUMNS% 1 ", "
+  DB_QUERY "SELECT " %columns$% " FROM " %table$%
+
+  # Save data
+  DEF DB_ROWS = %LASTROW%
+  READVECTORFROMGRID DB_DATA[][] = 1 1 0 1 %DB_COLUMNS% %DB_ROWS%
+
+ENDFUNCTION
+
+# Put current table into the grid with column header
+FUNCTION DB_GRID noheader
+
+  # Clear grid area
+  NEWGRID 1 1 1024
+
+  # Insert table data
+  IF %DB_COLUMNS% > 0 AND %DB_ROWS% > 0
+    WRITEVECTORTOGRID DB_DATA[][] 1 1 0 1 %DB_COLUMNS% %DB_ROWS%
+  ENDIF
+
+  # Add column names (header line)
+  IF %DB_COLUMNS% > 0 AND %noheader$% == ""
+    INSERTROW 1
+    WRITEVECTORTOGRID DB_COLUMN[] 1 1 1 1
+  ENDIF
+
+ENDFUNCTION
+
+# Remove all rows that do not contain text
+FUNCTION DB_FILTER text
+
+  # Variables
+  VAR r c found
+
+  # Load data in grid
+  DB_GRID noheader
+
+  # Add extra column, the mark column
+  DEF c = %DB_COLUMNS% + 1
+  INSERTCOLUMN %c%
+
+  # Loop through all rows
+  FOR r = 1 TO %DB_ROWS%
+    FINDTEXTINROW found = %text$% %r% 1 1
+    IF %found% < 0
+      WRITECELLS "x" %c% %c% %r% %r%
+    ENDIF
+  NEXT
+
+  # Delete all marked rows from grid
+  DELETEROWS 1 %DB_ROWS% %c% "x" 1
+
+  # Remove mark column
+  DELETECOLUMNS %c% %c%
+
+  # Save data
+  DEF DB_ROWS = %LASTROW%
+  CLEARARRAY DB_DATA[][]
+  READVECTORFROMGRID DB_DATA[][] = 1 1 0 1 %DB_COLUMNS% %DB_ROWS%
+
+  # Clear grid area
+  NEWGRID 1 1 1024
+
+ENDFUNCTION
+
+# Give all tables in current schema
+FUNCTION DB_TABLES tables
+  DB_QUERY "SELECT table_name FROM tabs"
+  COPYCELLSTOVAR tables = 1 1 1 %LASTROW%
+ENDFUNCTION
+
+# Give all columns of table
+FUNCTION DB_COLUMNS columns = table
+    DB_QUERY "SELECT column_name FROM user_tab_columns WHERE table_name = '" %table$% "'"
+  COPYCELLSTOVAR columns = 1 1 1 %LASTROW%
+ENDFUNCTION
+
+# Save a script from database to file
+FUNCTION DB_SAVESCRIPT filename = scriptnr
+
+  # Variables
+  VAR EOL CR LF
+  VAR query err str script script[]
+  VAR scriptlength buffersize offset i n m scriptcrlf
+
+  # Keep the buffersize small (grid cells hold up to 1024 characters...)
+  DEF buffersize = 800
+  NEWGRID 1 1 1024
+
+  # Get script length
+  DB_QUERY "SELECT DBMS_LOB.GetLength(SCRIPT) FROM D_SCRIPT WHERE NR = " %scriptnr$%
+  DEFXY scriptlength = 1 1
+
+  # Fetch data in chunks
+  DEF n = CEIL(%scriptlength% / %buffersize%)
+  FOR i = 1 TO %n%
+
+    # Fetch chunk of data
+    DEF offset = ( %i% - 1 ) * %buffersize% + 1
+    DB_QUERY "SELECT '[' || REPLACE(REPLACE(REPLACE(UTL_RAW.CAST_TO_VARCHAR2(DBMS_LOB.SUBSTR(SCRIPT," %buffersize$% ", " %offset$% ")),chr(13),'<CR>'),chr(10),'<LF>'),chr(9),' ') || ']' FROM D_SCRIPT WHERE NR = '" %scriptnr$% "'"
+
+    # Get data chunk from grid
+    DEFXY str = 1 1
+    DEF str = %str$%
+    DEF str = SUBSTR(%str$%;2;LENGTH(%str$%) - 2)
+
+    # Add to script
+    DEF script = %script$% + %str$%
+
+  NEXT
+
+  # Create carriage-return and line-feed characters (ASCII 13, ASCII 10)
+  SAVEFILETEXT "*" " " 1
+  LOADFILETEXT EOL = "*"
+  DEF CR = SUBSTR(%EOL$%;2;1)
+  DEF LF = SUBSTR(%EOL$%;3;1)
+
+  # Convert escaped new-lines
+  WHILE %n% != 0
+
+    # Find an escaped newline
+    DEF n = POS(%script$%;"<CR><LF>")
+
+    # Get data that comes before a newline
+    IF %n% > 1
+      DEF m = %n% - 1
+      DEF scriptcrlf = %scriptcrlf$% + SUBSTR(%script$%;1;%m%)
+    ENDIF
+
+    # Chop of the escaped newline and insert real newline
+    IF %n% == 1
+      IF SUBSTR(%script$%;1;8) == "<CR><LF>"
+        DEF scriptcrlf = %scriptcrlf$% + %CR$% + %LF$%
+        DEF n = 8 + 1
+      ENDIF
+    ENDIF
+
+    # If no newline found, copy all remaining data
+    IF %n% == 0 AND LENGTH(%script$%) > 0
+      DEF n = LENGTH(%script$%)
+      DEF m = %n% - 1
+      DEF scriptcrlf = %scriptcrlf$% + SUBSTR(%script$%;1;%m%)
+    ENDIF
+
+    # Skip ahead
+    IF %n% > 0
+      DEF m = %n% - 1
+      DEF script = DELETESTR(%script$%;1;%m%)
+    ENDIF
+
+  ENDWHILE
+
+  # Save escaped string to file
+  SAVEFILETEXT %filename$% %scriptcrlf$%
+
+  # Clean up grid area
+  NEWGRID 1 1 1024
+
+ENDFUNCTION
+
+# Save all scripts active as a Monitor process to a directory
+FUNCTION DB_BACKUP_PROCESS_SCRIPTS directory
+
+  NEWGRID 1 1 1024
+  MAKEARRAYOFSTRING DB_COLUMN[] = "SCRIPTNR SCRIPTCODE PROCESSCODE TIMESTAMPVALUE SCRIPTVERSION" " "
+  DEF DB_COLUMNS = %DB_COLUMN[0]%
+  DB_QUERY "SELECT D_SCRIPT.NR AS SCRIPTNR, D_SCRIPTLIBRARY.CODE AS SCRIPTCODE, D_PROCESS.CODE AS PROCESSCODE, D_SCRIPT.TIMESTAMPVALUE, D_SCRIPTVERSION.MAJORVERSION || '.' || D_SCRIPTVERSION.MINORVERSION AS SCRIPTVERSION FROM D_SCRIPT INNER JOIN D_SCRIPTVERSION ON D_SCRIPTVERSION.NR = D_SCRIPT.SCRIPTVERSIONNR INNER JOIN D_SCRIPTLIBRARY ON D_SCRIPTLIBRARY.NR = D_SCRIPTVERSION.SCRIPTLIBRARYNR INNER JOIN D_PROCESS ON D_PROCESS.SCRIPTVERSIONNR = D_SCRIPTVERSION.NR"
+  DEF DB_ROWS = %LASTROW%
+  CLEARARRAY DB_DATA[][]
+  READVECTORFROMGRID DB_DATA[][] = 1 1 0 1 %DB_COLUMNS% %DB_ROWS%
+  INSERTROW 1
+  WRITEVECTORTOGRID DB_COLUMN[] 1 1 1 1
+  DEF DB_TABLE = "SCRIPT"
+  VAR r filename processcode scriptnr scriptcode scriptversion str
+  FOR r = 1 TO %DB_ROWS%
+
+    DEF scriptnr      = %DB_DATA[1][r]$%
+    DEF scriptcode    = %DB_DATA[2][r]$%
+    DEF processcode   = %DB_DATA[3][r]$%
+    DEF scriptversion = %DB_DATA[5][r]$%
+
+    DEF filename = %directory$% + "\" + %processcode$% + ".gen"
+    DEF str = "Saving " + %filename$% + "..."
+    INFOLINE 1 %str$%
+    DB_SAVESCRIPT %filename$% = %scriptnr%
+  NEXT
+ENDFUNCTION
+
+# Save all latest scripts that life in the Script Library to a directory
+FUNCTION DB_BACKUP_LIBRARY_SCRIPTS directory
+
+  NEWGRID 1 1 1024
+
+  VAR columns query
+
+  # All latest active versions
+  DEF columns = "NR CODE TIMESTAMPVALUE VERSION"
+  DEF query   = "SELECT S.NR, L.CODE, S.TIMESTAMPVALUE, V.MAJORVERSION || '.' || V.MINORVERSION AS VERSION FROM D_SCRIPT S INNER JOIN D_SCRIPTVERSION V ON S.SCRIPTVERSIONNR = V.NR INNER JOIN D_SCRIPTLIBRARY L ON V.SCRIPTLIBRARYNR = L.NR WHERE TIMESTAMPVALUE = ( SELECT MAX(TIMESTAMPVALUE) FROM D_SCRIPT S_ INNER JOIN D_SCRIPTVERSION V_ ON S_.SCRIPTVERSIONNR = V_.NR INNER JOIN D_SCRIPTLIBRARY L_ ON V_.SCRIPTLIBRARYNR = L_.NR WHERE L.CODE = L_.CODE AND V.STATUS = 1 )"
+
+  # All latest versions (including non-active versions)
+  #DEF columns = "NR CODE TIMESTAMPVALUE VERSION"
+  #DEF query   = "SELECT S.NR, L.CODE, S.TIMESTAMPVALUE, V.MAJORVERSION || '.' || V.MINORVERSION AS VERSION FROM D_SCRIPT S INNER JOIN D_SCRIPTVERSION V ON S.SCRIPTVERSIONNR = V.NR INNER JOIN D_SCRIPTLIBRARY L ON V.SCRIPTLIBRARYNR = L.NR WHERE TIMESTAMPVALUE = ( SELECT MAX(TIMESTAMPVALUE) FROM D_SCRIPT S_ INNER JOIN D_SCRIPTVERSION V_ ON S_.SCRIPTVERSIONNR = V_.NR INNER JOIN D_SCRIPTLIBRARY L_ ON V_.SCRIPTLIBRARYNR = L_.NR WHERE L.CODE = L_.CODE)"
+
+  MAKEARRAYOFSTRING DB_COLUMN[] = %columns$% " "
+  DEF DB_COLUMNS = %DB_COLUMN[0]%
+  DB_QUERY %query$%
+
+  DEF DB_ROWS = %LASTROW%
+  CLEARARRAY DB_DATA[][]
+  READVECTORFROMGRID DB_DATA[][] = 1 1 0 1 %DB_COLUMNS% %DB_ROWS%
+  INSERTROW 1
+  WRITEVECTORTOGRID DB_COLUMN[] 1 1 1 1
+  DEF DB_TABLE = "SCRIPT"
+  NEWGRID 1 1 1024
+
+  VAR r filename processcode scriptnr scriptcode scriptversion str
+  FOR r = 1 TO %DB_ROWS%
+    DEF scriptnr      = %DB_DATA[1][r]$%
+    DEF scriptcode    = %DB_DATA[2][r]$%
+    DEF scriptversion = %DB_DATA[4][r]$%
+    DEF filename = %directory$% + "\" + %scriptcode$% + " v" + %scriptversion$% + ".gen"
+
+    DEF str = "Saving " + %filename$% + "..."
+    INFOLINE 1 %str$%
+    DB_SAVESCRIPT %filename$% = %scriptnr$%
+
+  NEXT
+ENDFUNCTION
+
+#INCLUDE "MAP"
+#FUNCTION DB_MAP object
+#  VAR nrcolumn r c nr
+#
+#  IF %object$% == ""
+#    IF %DB_TABLE$% == ""
+#      DEF object = "ROW"
+#    ELSE
+#      DEF object = %DB_TABLE$%
+#    ENDIF
+#  ENDIF
+#
+#  FOR r = 1 TO %DB_ROWS%
+#    FOR c = 1 TO %DB_COLUMNS%
+#      MAP_SET %object$% "[" %r% "]." %DB_COLUMN[c]$% = %DB_DATA[c][r]$%
+#    NEXT
+#  NEXT
+#ENDFUNCTION

@@ -1,0 +1,575 @@
+#COLUMN [column1] = [column2] [operation] [column3]
+#COLUMN [column1] = [function([column2])]
+#COLUMN [column1] = [column2]
+
+#NEWGRID 1 1 64
+#COLUMN NR = SEQ(100)
+#COLUMN A = RANDOM(100)
+#COLUMN B = RANDOM(100)
+#COLUMN C = A / B
+
+#NEWGRID 1 1 64
+#COLUMN NR  = SEQ(100)
+#COLUMN A   = RANDOM(100)
+#COLUMN A  += 10
+
+#NEWGRID 1 1 64
+#COLUMN NR = SEQ(100)
+#COLUMN A  = RANDOM(100)
+#COLUMN B  = A
+#COLUMN B += 10
+#COLUMN C  = B - A
+#COLUMN C /= 3
+#COLUMN_FORMAT C = "0.00"
+
+FUNCTION COLUMN s1 s2 s3 s4 s5
+
+  VAR c1 c2 c3
+  VAR op
+  VAR n2 n3
+
+  # Possible operations
+  VAR operations
+  DEF operations = "+,-,*,/,^,%,min,max,>,>=,<,<=,==,!="
+  
+  VAR functions
+  DEF functions = "RANDOM,ROUND,ROUND12,CEIL,FLOOR,ISNUMBER,ABS,LAG,STRING,SEQ,NEW,EXP,NAN"
+
+  # S1 S2 S3 S4 S5
+  # A  =  B  +  C
+  IF %s2$% == "=" AND POS(%operations$%;%s4$%) > 0
+    DEF op = %s4$%
+    FINDTEXTINROW c1 = %s1$% 1 1 1
+    FINDTEXTINROW c2 = %s3$% 1 1 1
+    FINDTEXTINROW c3 = %s5$% 1 1 1
+    DEF n2 = %s3$%
+    DEF n3 = %s5$%
+  ENDIF
+
+  # S1 S2 S3 S4 S5     # S1 S2 S3   S4 S5
+  # A  =  B            # A  =  F(b)
+  IF %s2$% == "=" AND %s4$% == ""
+    FINDTEXTINROW c1 = %s1$% 1 1 1
+    IF POS(%functions$%;SUBSTR(%s3$%;1;POS(%s3$%;"(")-1))
+      DEF op = SUBSTR(%s3$%;1;POS(%s3$%;"(")-1)
+      VAR m
+      DEF m = SUBSTR(%s3$%;POS(%s3$%;"(")+1;LENGTH(%s3$%))
+      DEF m = SUBSTR(%m$%;1;POS(%m$%;")")-1)
+      FINDTEXTINROW c2 = %m$% 1 1 1
+      DEF n2 = %m$%
+    ELSE
+      DEF op = "="
+      FINDTEXTINROW c2 = %s3$% 1 1 1
+      DEF n2 = %s3$%
+    ENDIF
+  ENDIF
+
+  # S1 S2 S3
+  # A  += B
+  IF LENGTH(%s2$%) == 2
+    DEF op = SUBSTR(%s2$%;1;1)
+    FINDTEXTINROW c1 = %s1$% 1 1 1
+    FINDTEXTINROW c2 = %s1$% 1 1 1
+    FINDTEXTINROW c3 = %s3$% 1 1 1
+    DEF n2 = %s1$%
+    DEF n3 = %s3$%
+  ENDIF
+
+  VAR c
+  IF %c1% < 0
+    COUNTCOLUMNS c = 1
+    INC c
+    INSERTCOLUMN %c%
+    WRITECELLS %s1$% %c% %c% 1 1
+    DEF c1 = %c%
+  ENDIF
+
+  # Column width (w), character width (cw) and min. width (mw)
+  VAR w cw mw
+  DEF cw = 8
+  DEF mw = 30
+  DEF w  = MAX(LENGTH(CELLSTR(%c1%;1)) * %cw%;%mw%)
+
+  VAR v1 v2 v3 row
+  VAR r s char done txt
+  VAR rows
+  DEF rows = %LASTROW%
+  IF %op$% == "SEQ" OR %op$% == "NEW"
+    DEF rows = %n2% + 1
+  ENDIF
+  FOR r = 2 TO %rows%
+
+    DEF row = %r%
+
+    IF ISNUMBER(%n2$%)
+      DEF   v2 = %n2%
+    ELSE
+      DEFXY v2 = %c2% %r%
+    ENDIF
+
+    IF ISNUMBER(%n3$%)
+      DEF   v3 = %n3%
+    ELSE
+      DEFXY v3 = %c3% %r%
+    ENDIF
+
+    IF %op$% == "="
+      DEF v1 = %v2$%
+    ENDIF
+
+    IF %op$% == "+"
+      IF ISNUMBER(%v2$%) AND ISNUMBER(%v3$%)
+        DEF v1 = %v2% + %v3%
+      ELSE
+	    IF %v2$% == "NaN" OR %v3$% == "NaN"
+        DEF v1 = "NaN"
+      ELSE
+          DEF v1 = %v2$% + %v3$%
+		ENDIF
+      ENDIF
+    ENDIF
+
+    IF %op$% == "-"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% - %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == "*"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% * %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == "/"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        IF %v3% == 0
+          DEF v1 = "NaN"
+        ELSE
+          DEF v1 = %v2% / %v3%
+        ENDIF
+      ENDIF
+    ENDIF
+
+    IF %op$% == "^"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% ^ %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == ">"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% > %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == ">="
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% >= %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == "<"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% < %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == "<="
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% <= %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == "=="
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% == %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == "!="
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = %v2% != %v3%
+      ENDIF
+    ENDIF
+
+    IF %op$% == "min"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = MIN(%v2%;%v3%)
+      ENDIF
+    ENDIF
+
+    IF %op$% == "max"
+      IF NOT ISNUMBER(%v2$%) OR NOT ISNUMBER(%v3$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = MAX(%v2%;%v3%)
+      ENDIF
+    ENDIF
+    
+    IF %op$% == "ROUND"
+      IF NOT ISNUMBER(%v2$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = ROUND(%v2%)
+      ENDIF
+    ENDIF
+
+    IF %op$% == "ROUND12"
+      IF NOT ISNUMBER(%v2$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = ROUND(%v2% * 12) / 12
+      ENDIF
+    ENDIF
+
+    IF %op$% == "RANDOM"
+      IF NOT ISNUMBER(%v2$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = RANDOM(%v2%)
+      ENDIF
+    ENDIF
+
+    IF %op$% == "CEIL"
+      IF NOT ISNUMBER(%v2$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = CEIL(%v2%)
+      ENDIF
+    ENDIF
+
+    IF %op$% == "FLOOR"
+      IF NOT ISNUMBER(%v2$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = FLOOR(%v2%)
+      ENDIF
+    ENDIF
+
+    IF %op$% == "ISNUMBER"
+      DEF v1 = ISNUMBER(%v2$%)
+    ENDIF
+
+    IF %op$% == "ABS"
+      IF NOT ISNUMBER(%v2$%)
+        DEF v1 = "NaN"
+      ELSE
+        DEF v1 = ABS(%v2%)
+      ENDIF
+    ENDIF
+    
+    IF %op$% == "LAG"
+      DEF v1 = %v2$%
+      DEF row = %r% + 1
+    ENDIF
+
+    IF %op$% == "STRING"
+      DEF v1 = %n2$%
+    ENDIF
+
+    IF %op$% == "EXP"
+      IF NOT ISNUMBER(%v2$%)
+        DEF v1 = "NaN"
+      ELSE
+        # EXP will crash at EXP(44), hack:
+        DEF v1 = EXP(MIN(%v2%;43))
+      ENDIF
+    ENDIF
+
+    IF %op$% == "SEQ"
+      DEF v1 = %r% - 1
+    ENDIF
+
+    IF %op$% == "NEW"
+      DEF v1 = "NaN"
+    ENDIF
+
+    IF %op$% == "NAN"
+      DEF v1 = (%v2$% == "NaN")
+    ENDIF
+
+    IF ISNUMBER(%v1$%) AND POS(%v1$%;".") > 0
+
+      DEF s = LENGTH(%v1$%)
+      WHILE TRUE
+        DEF char = SUBSTR(%v1$%;%s%;1)
+        IF (%char$% != "0" AND %char$% != ".") OR POS(%v1$%;".") <= 0
+          BREAK
+        ENDIF
+        IF %char$% == "0" OR %char$% == "."
+          DEF v1 = SUBSTR(%v1$%;1;%s%-1)
+        ENDIF
+        INC s -1
+      ENDWHILE
+
+    ENDIF
+    
+    WRITECELLS %v1$% %c1% %c1% %row% %row%
+    
+	DEF w = MAX(%w%;LENGTH(%v1$%) * %cw%)
+
+  NEXT
+
+  INC w %cw%
+  DEF w = MAX(%w%;%mw%)
+  SETVISUALCOLWIDTH %c1% %c1% %w%
+
+ENDFUNCTION
+
+FUNCTION COLUMN_FORMAT column = format
+
+  VAR c
+  FINDTEXTINROW c = %column$% 1 1 1
+
+  IF %c% < 0
+    STOP
+  ENDIF
+
+  IF %format$% == ""
+    DEF format = "0.0"
+  ENDIF
+
+  VAR s[] l d
+  IF POS(%format$%;".") > 0
+    MAKEARRAYOFSTRING s[] = %format$% "."
+    IF %s[2]$% == ""
+      DEF l = 0
+    ELSE
+      DEF l = LENGTH(%s[1]$% + " " + %s[2]$%)
+    ENDIF
+    DEF d = LENGTH(%s[2]$%)
+  ELSE
+    DEF l = LENGTH(%format$%)
+    DEF d = 0
+  ENDIF
+
+  VAR tsep
+  IF POS(%format$%;",") > 0
+    DEF tsep = ","
+  ELSE
+    DEF tsep = ""
+  ENDIF
+
+  # Column width (w), character width (cw) and min. width (mw)
+  VAR w cw mw
+  DEF cw = 8
+  DEF mw = 30
+  DEF w  = MAX(LENGTH(CELLSTR(%c%;1)) * %cw%;%mw%)
+
+  VAR v r
+  FOR r = 2 TO %LASTROW%
+    DEFXY v = %c% %r%
+    IF ISNUMBER(%v$%)
+      DEF v = FORMATNUMBER(%v%;%d%;%l%;".";%tsep$%)
+    ENDIF
+    WRITECELLS %v$% %c% %c% %r% %r%
+  	DEF w = MAX(%w%;LENGTH(%v$%) * %cw%)
+  NEXT
+
+  INC w %cw%
+  DEF w = MAX(%w%;%mw%)
+  SETVISUALCOLWIDTH %c% %c% %w%
+
+ENDFUNCTION
+
+
+FUNCTION COLUMN_DELETE column
+
+  VAR c
+  FINDTEXTINROW c = %column$% 1 1 1
+
+  IF %c% < 0
+    STOP
+  ENDIF
+
+  DELETECOLUMNS %c% %c%
+
+ENDFUNCTION
+
+FUNCTION COLUMN_ID colnr = column
+  FINDTEXTINROW colnr = %column$% 1 1 1
+  DEF colnr = MAX(0;%colnr%)
+ENDFUNCTION
+
+FUNCTION COLUMN_CELL value = column row
+
+  VAR c r
+
+  FINDTEXTINROW c = %column$% 1 1 1
+  DEF c = MAX(0;%c%)
+
+  FINDTEXTINCOL r = %row$% 1 2 1
+  DEF r = MAX(0;%r%)
+
+  IF %c% * %r% > 0
+    DEFXY value = %c% %r%
+  ENDIF
+
+ENDFUNCTION
+
+FUNCTION COLUMN_LIST columns
+  VAR n
+  COUNTCOLUMNS n = 1
+  COPYCELLSTOVAR columns = 1 %n% 1 1 "," ""
+ENDFUNCTION
+
+FUNCTION COLUMN_CELLS cells = column
+  VAR c n
+  COLUMN_ID %c% = %column$%
+  IF %c%
+    COPYCELLSTOVAR cells = %c% %c% 2 %LASTROW% "," ","
+  ENDIF
+ENDFUNCTION
+
+FUNCTION COLUMN_ROWS rows
+  IF %LASTROW% > 1
+    COPYCELLSTOVAR rows = 1 1 2 %LASTROW% "," ","
+  ELSE
+    DEF rows = ""
+  ENDIF
+ENDFUNCTION
+
+FUNCTION COLUMN_RENAME column = newcolumn
+  VAR c
+  COLUMN_ID %c$% = %column$%
+  IF %c%
+    WRITECELLS %newcolumn$% %c% %c% 1 1
+  ENDIF
+ENDFUNCTION
+
+FUNCTION COLUMN_KEEP c1 c2 c3 c4 c5 c6 c7 c8 c9 c10
+
+  VAR keepers
+  DEF keepers = %c1$% + "," + %c2$% + "," + %c3$% + "," + %c4$% + "," + %c5$% + "," + %c6$% + "," + %c7$% + "," + %c8$% + "," + %c9$% + "," + %c10$%
+
+  VAR clist
+  COLUMN_LIST %clist$%
+
+  VAR c column columns listed
+  GETELEMENTCOUNT columns = %clist$%
+  FOR c = 1 TO %columns%
+    GETELEMENTATPOS column = %clist$% %c%
+    GETELEMENTPOS listed = %keepers$% %column$%
+    IF NOT %listed%
+      COLUMN_DELETE %column$%
+    ENDIF
+  NEXT
+
+ENDFUNCTION
+
+
+# Pair-wise deletion of rows...
+FUNCTION COLUMN_OMIT
+
+  VAR nan null r c columns column
+  COUNTCOLUMNS columns = 1
+  GETGUID column
+  COLUMN %column$% = STRING(KEEP)
+  COLUMN_ID %c$% = %column$%
+  FOR r = 2 TO %LASTROW%
+    FINDTEXTINROW nan  = "NaN" %r% 1 1
+    FINDTEXTINROW null = ""    %r% 1 1
+    IF (%nan% > 0) OR (%null% >= 0 AND %null% <= %columns%)
+      WRITECELLS "REMOVE" %c% %c% %r% %r%
+    ENDIF
+  NEXT
+
+  DELETEROWS 2 %LASTROW% %c% "REMOVE" 1
+  COLUMN_DELETE %column$%
+
+ENDFUNCTION
+
+FUNCTION COLUMN_AGG aggregate = function(column)
+
+  VAR str
+  DEF str = %function(column)$%
+  VAR function column
+  DEF function = SUBSTR(%str$%;1;POS(%str$%;"(")-1)
+  DEF column   = SUBSTR(%str$%;POS(%str$%;"(")+1;LENGTH(%str$%)-POS(%str$%;"(")-1)
+
+  IF %function$% == ""
+    STOP
+  ENDIF
+
+  VAR columnid
+  COLUMN_ID %columnid$% = %column$%
+  IF NOT %columnid%
+    STOP
+  ENDIF
+
+  VAR vector
+  COLUMN_CELLS %vector$% = %column$%
+
+  VAR v[]
+  MAKEARRAYOFSTRING v[] = %vector$%
+  VAR i value count
+  DEF value = 0
+  DEF count = 0
+
+  IF LOWERCASE(%function$%) == "sum"
+    FOR i = 1 TO %v[0]%
+      IF ISNUMBER(%v[i]$%)
+        INC count
+        DEF value = %value% + %v[i]%
+      ENDIF
+    NEXT
+  ENDIF
+
+  DEF aggregate = %value%
+
+ENDFUNCTION
+
+FUNCTION COLUMN_SORTBY column ORDER
+  VAR sort_order
+  DEF sort_order = 1
+  IF %ORDER$% == "DESC"
+    DEF sort_order = 0
+  ENDIF
+  VAR colnr
+  COLUMN_ID %colnr$% = %column$%
+  IF %colnr%
+    VAR columns
+    COUNTCOLUMNS columns = 1
+    SORT 1 %columns% 2 %LASTROW% 1 1 %colnr% 0
+  ENDIF
+ENDFUNCTION
+
+FUNCTION COLUMN_TOLIST list = column
+  
+  VAR colnr
+  COLUMN_ID %colnr$% = %column$%
+  IF %colnr%
+    COPYCELLSTOVAR list = %colnr% %colnr% 2 %LASTROW% "" ","
+    # COPYCELLSTOVAR returns value of %LASTROW$% when targeted area of grid is empty.
+    IF %list$% == %LASTROW$%
+      DEF list = ""
+    ENDIF
+  ELSE
+    DEF list = ""
+  ENDIF
+
+ENDFUNCTION
+

@@ -1,0 +1,169 @@
+FUNCTION HTML_HELP
+  INFOLINE 1 "Title:   HTML library"
+  INFOLINE 1 "Version: 5"
+  INFOLINE 1 "Date:    April 8th, 2013"
+  INFOLINE 1 "Author:  Nabi Abudaldah (nabi.abudaldah@gen.nl)"
+  INFOLINE 1 ""
+  INFOLINE 1 "Functions in this library:"
+  INFOLINE 1 ""
+  INFOLINE 1 "  HTML_NEW title css          Generates basic HTML header with optional title and css."
+  INFOLINE 1 "  HTML_ADD s1 .. s16          Add string s1 - s16 to current html document."
+  INFOLINE 1 "  HTML_FOOTER                 Generates HTML footer"
+  INFOLINE 1 "  HTML_TABLE t l b r          Generates HTML <table> from part of current grid, as given by t (top), l (left), b (bottom), r (right)"
+  INFOLINE 1 "  HTML_HR                     Generates HTML <hr> tag"
+  INFOLINE 1 "  HTML_H1 text                Generates HTML header level 1 using text"
+  INFOLINE 1 "  HTML_H2 text                Generates HTML header level 2 using text"
+  INFOLINE 1 "  HTML_P text                 Generates HTML <p> tag including text"
+  INFOLINE 1 ""
+  INFOLINE 1 "Example:"
+  INFOLINE 1 ""
+  INFOLINE 1 "  Create a string variable and pass this variable to all functions to"
+  INFOLINE 1 "  generate HTML code into the string variable. Here is an example:"
+  INFOLINE 1 ""
+  INFOLINE 1 "  NEWGRID 5 10 32"
+  INFOLINE 1 "  VAR x y t"
+  INFOLINE 1 "  FOR x = 1 TO 5"
+  INFOLINE 1 "    FOR y = 1 TO 10"
+  INFOLINE 1 "      DEF t = ~"Col~" + %x$% + ~"Row~" + %y$%"
+  INFOLINE 1 "      WRITECELLS %t$% %x% %x% %y% %y% 0 0"
+  INFOLINE 1 "    NEXT"
+  INFOLINE 1 "  NEXT"
+  INFOLINE 1 ""
+  INFOLINE 1 "  VAR html"
+  INFOLINE 1 "  HTML_NEW ~"Title of HTML Document~" ~"td { padding: 5px; }~""
+  INFOLINE 1 "  HTML_H1 ~"Header of this Document~""
+  INFOLINE 1 "  DEF t = ~"Date: ~" +  DATESTR(NOW;~"DDDD MMMM D, YYYY~")"
+  INFOLINE 1 "  HTML_P %t$%"
+  INFOLINE 1 "  HTML_HR"
+  INFOLINE 1 "  HTML_TABLE 1 1 5 5"
+  INFOLINE 1 "  HTML_HR"
+  INFOLINE 1 "  HTML_FOOTER"
+  INFOLINE 1 "  HTMLSAVE ~"C:\Users\nabi.abudaldah\Downloads\nabi.html~""
+  INFOLINE 1 ""
+ENDFUNCTION
+
+# Global variables
+VAR HTML_CONTENT
+VAR HTML_EOL
+
+# Generate line ending (CR+LF on Windows)
+SAVEFILETEXT "*" " " 1
+LOADFILETEXT HTML_EOL = "*"
+DEF HTML_EOL = SUBSTR(%HTML_EOL$%;2;2)
+
+# HTML_ADD s1 ... s16
+FUNCTION HTML_ADD s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
+  VAR str
+  DEF str = %s1$% + %s2$% + %s3$% + %s4$% + %s5$% + %s6$% + %s7$% + %s8$% + %s9$% + %s10$% + %s11$% + %s12$% + %s13$% + %s14$% + %s15$% + %s16$%
+  DEF HTML_CONTENT = %HTML_CONTENT$% + %str$% + %HTML_EOL$%
+ENDFUNCTION
+
+# HTML_TABLE - Generates HTML <table> from part of current grid
+FUNCTION HTML_TABLE col row cols rows
+  VAR m[][] x y
+
+  # read cells from grid into 2D array
+  READVECTORFROMGRID m[][] = %col% %row% 0 1 %cols% %rows%
+
+  HTML_ADD "<table>"
+  HTML_ADD "<thead><tr>"
+
+  # first row is regarded as the header row
+  FOR x = 1 to %cols%
+    HTML_ADD "<td>" %m[x][1]$%  "</td>"
+  NEXT
+  HTML_ADD "</tr></thead><tbody>"
+
+  # go through all rows (start from 2nd row)
+  FOR y = 2 to %rows%
+    IF (%y% MOD 2) == 0
+      HTML_ADD "<tr class='even'>"
+    ELSE
+      HTML_ADD "<tr class='uneven'>"
+    ENDIF
+    # go through all cells
+    FOR x = 1 to %cols%
+      IF ISNUMBER(%m[x][y]$%)
+        HTML_ADD "<td class='nr'>" %m[x][y]$% "</td>"
+      ELSE
+        HTML_ADD "<td>" %m[x][y]$% "</td>"
+      ENDIF
+    NEXT
+    HTML_ADD "</tr>"
+  NEXT
+  HTML_ADD "</tbody></table>"
+ENDFUNCTION
+
+# HTML_HEADER - Generates basic HTML header with title and css
+FUNCTION HTML_NEW title css
+  DEF HTML_CONTENT = ""
+  HTML_ADD "<!DOCTYPE html>"
+  HTML_ADD "<html>"
+  HTML_ADD "<head>"
+  HTML_ADD "<title>" %title$%  "</title>"
+  HTML_ADD "<style>" %css$% "</style>"
+  HTML_ADD "</head>"
+  HTML_ADD "<body>"
+ENDFUNCTION
+
+# HTML_FOOTER - Generates HTML footer
+FUNCTION HTML_FOOTER
+  HTML_ADD "</body>"
+  HTML_ADD "</html>"
+ENDFUNCTION
+
+# HTML_HR - Generates HTML <hr> tag
+FUNCTION HTML_HR
+  HTML_ADD "<hr>"
+ENDFUNCTION
+
+# HTML_H1 - Generate HTML header level 1 using text
+FUNCTION HTML_H1 text
+  HTML_ADD "<h1>" %text$%  "</h1>"
+ENDFUNCTION
+
+# HTML_H2 - Generate HTML header level 2 using text
+FUNCTION HTML_H2 text
+  HTML_ADD "<h2>" %text$%  "</h2>"
+ENDFUNCTION
+
+# HTML_P - Generates HTML <p> tag including text
+FUNCTION HTML_P text
+  HTML_ADD "<p>" %text$%  "</p>"
+ENDFUNCTION
+
+# HTML_SAVE filename
+FUNCTION HTML_SAVE filename
+  SAVEFILETEXT %filename$% %HTML_CONTENT$% 1 "OVERWRITE"
+ENDFUNCTION
+
+
+
+
+
+
+# Example!
+
+#NEWGRID 5 10 32
+#VAR x y t
+#FOR x = 1 TO 5
+#  FOR y = 1 TO 10
+#    DEF t = "Col" + %x$% + "Row" + %y$%
+#    WRITECELLS %t$% %x% %x% %y% %y% 0 0
+#  NEXT
+#NEXT
+#
+#HTML_NEW "Title of HTML Document" "td { padding: 5px; }"
+#HTML_H1 "Header of this Document"
+#DEF t = "Date: " +  DATESTR(NOW;"DDDD MMMM D, YYYY")
+#HTML_P %t$%
+#HTML_HR
+#HTML_TABLE 1 1 5 5
+#HTML_HR
+#HTML_FOOTER
+#HTML_SAVE "C:\nabi.html"
+
+
+
+# 16-04-2013 17:03:34 Script run successful.
+# 16-04-2013 17:03:50 Script run successful.
