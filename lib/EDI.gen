@@ -8,8 +8,8 @@
 #  Environment     :
 #  Trigger         :
 #  Author          : NA
-#  Date            : 05-04-2013
-#  Version         : 0.13
+#  Date            : 13-02-2015
+#  Version         : 0.14
 #  Info            : nabi.abudaldah@gen.nl
 #  GENnumber       :
 #
@@ -35,6 +35,9 @@
 #  EDI_CADD s1 s2 s3 ... s16                        Conditionally append s1 s2 s3 ... s16 to current new message (only when one of s2 s4 s6 ... s16 is filled)
 #  EDI_SAVE filename                                Save current new message to file
 #  EDI_AUTOLF disable                               Enable auto line-feed after each EDI_ADD or EDI_CADD. Disable by setting optional argument disable.
+#  EDI_ESC string                                   Escape string containing special characters ("'", "+" and ":")
+#  EDI_UNESC string                                 Un-escape string containing escaped special characters ("'", "+" and ":")
+#  EDI_TEST                                         Unit test functionality of this library (only covers EDI_ESC and EDI_UNESC)
 #
 #  Revisions:
 #  Author              Date            Version Concerns/Changes
@@ -43,6 +46,7 @@
 #  NA                  12-03-2013      0.11    Added EDI_FILL and DEBUG functions.
 #  NA                  21-03-2013      0.12    Added EDI_NEW, EDI_ADD, EDI_CADD and EDI_SAVE. Removed DEBUG functions.
 #  NA                  05-04-2013      0.13    Added EDI_AUTOLF function. Corrected EDI_SAVE behaviour.
+#  NA                  13-02-2015      0.14    Added EDI_ESC and EDI_UNESC functions. Started unit-testing EDI_TEST function.
 #
 #############################################################################################################################
 
@@ -81,6 +85,7 @@ DEF EDI_CLOSURE[2] = "UNH UNT"
 # Line feed character
 VAR EDI_LF
 
+# Does not work in GEN eBase 7.x (some internals changed)
 # Enable line-feed in EDI_ADD (and EDI_CADD)
 FUNCTION EDI_AUTOLF disable
   IF %disable$% != ""
@@ -483,36 +488,184 @@ FUNCTION EDI_NEW
 ENDFUNCTION
 
 # Add line to message
-FUNCTION EDI_ADD s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
-
-  DEF EDI_NEWMESSAGE = %EDI_NEWMESSAGE$% + %s1$% + %s2$% + %s3$% + %s4$% + %s5$% + %s6$% + %s7$% + %s8$% + %s9$% + %s10$% + %s11$% + %s12$% + %s13$% + %s14$% + %s15$% + %s16$% + %EDI_LF$%
-
-  # Increase message segment counter
-  IF %EDI_NEWSEGMENTS%
-    INC EDI_NEWSEGMENTS
-  ENDIF
+FUNCTION EDI_ADD s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 s20
 
   # Start counting at start of message
   IF SUBSTR(%s1$%;1;3) == "UNH"
     DEF EDI_NEWSEGMENTS = 1
   ENDIF
 
+  # Increase message segment counter
+  IF %EDI_NEWSEGMENTS%
+    INC EDI_NEWSEGMENTS
+  ENDIF
+
+  # Add to message
+  DEF EDI_NEWMESSAGE = %EDI_NEWMESSAGE$% + %s1$% + %s2$% + %s3$% + %s4$% + %s5$% + %s6$% + %s7$% + %s8$% + %s9$% + %s10$% + %s11$% + %s12$% + %s13$% + %s14$% + %s15$% + %s16$% + %s17$% + %s18$% + %s19$% + %s20$%
+
+  # Reset counter at end of message
+  IF SUBSTR(%s1$%;1;3) == "UNT"
+    DEF EDI_NEWSEGMENTS = 0
+  ENDIF
+
 ENDFUNCTION
 
 # Conditional add: only when one even-input is filled
-FUNCTION EDI_CADD s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16
-  IF %s2$% + %s4$% + %s6$% + %s8$% + %s10$% + %s12$% + %s14$% + %s16$% != ""
-    EDI_ADD %s1$% %s2$% %s3$% %s4$% %s5$% %s6$% %s7$% %s8$% %s9$% %s10$% %s11$% %s12$% %s13$% %s14$% %s15$% %s16$%
+FUNCTION EDI_CADD s1 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 s12 s13 s14 s15 s16 s17 s18 s19 s20
+  IF (%s2$% + %s4$% + %s6$% + %s8$% + %s10$% + %s12$% + %s14$% + %s16$% + %s18$% + %s20$%) != ""
+    EDI_ADD %s1$% %s2$% %s3$% %s4$% %s5$% %s6$% %s7$% %s8$% %s9$% %s10$% %s11$% %s12$% %s13$% %s14$% %s15$% %s16$% %s17$% %s18$% %s19$% %s20$%
   ENDIF
 ENDFUNCTION
 
 # Save EDI message to file
 FUNCTION EDI_SAVE filename
-
   SAVEFILETEXT %filename$% %EDI_NEWMESSAGE$%
+ENDFUNCTION
 
-  IF NOT FILEWRITEABLE(%filename$%)
-    LOGLINE 1 "EDI_SAVE: Warning: output file not written."
+#
+# EDI_ESC escaped = string
+#
+# Escape special EDIFACT characters by inserting a
+# question mark symbol in front of any plus sign
+# (ASCII 43), apostroph symbol (ASCII 44), double
+# colon symbol (ASCII 58) or an question mark symbol
+# (ASCII 63). For example:
+#
+#   "Question: is there any body 'out' there?"
+#
+# Is translated (enscaped) into:
+#
+#   "Question?: is there any body ?'out?' there??"
+#
+
+FUNCTION EDI_ESC string
+
+  VAR len escaped
+  DEF len = LENGTH(%string$%)
+  DEF escaped = ""
+
+  VAR i c
+  FOR i = 1 TO %len%
+    DEF c = SUBSTR(%string$%;%i%;1)
+    IF %c$% == "+" OR %c$% == "'" OR %c$% == ":" OR %c$% == "?"
+      DEF c = "?" + %c$%
+    ENDIF
+    DEF escaped = %escaped$% + %c$%
+  NEXT
+
+  DEF string = %escaped$%
+
+ENDFUNCTION
+
+
+#
+# EDI_UNESC string
+#
+# Un-escape a character string that has been escaped
+# using EDI_ESC. For example:
+#
+#   "Question?: is there any body ?'out?' there??"
+#
+# Is translated back (un-enscaped) into:
+#
+#   "Question: is there any body 'out' there?"
+#
+
+FUNCTION EDI_UNESC string
+
+  VAR escaped
+  DEF escaped = %string$%
+
+  VAR len
+  DEF len = LENGTH(%escaped$%)
+  DEF string = ""
+
+  VAR i c c_
+  FOR i = 1 TO %len%
+    DEF c  = SUBSTR(%escaped$%;%i%    ;1)
+    DEF c_ = SUBSTR(%escaped$%;%i% + 1;1)
+    IF %c$% == "?" AND (%c_$% == "+" OR %c_$% == "'" OR %c_$% == ":" OR %c_$% == "?")
+      DEF c = %c_$%
+      INC i
+    ELSE
+      DEF c = %c$%
+    ENDIF
+    DEF string = %string$% + %c$%
+  NEXT
+
+ENDFUNCTION
+
+#
+# Test-Driven Development Unit Tests
+#
+
+FUNCTION EDI_TEST
+
+  VAR str
+
+  # EDI_ESC testing
+
+  # EDI_ESC: Test 1: escape plus sign character
+  DEF str = "+31650959947"
+  EDI_ESC %str$%
+  IF %str$% != "?+31650959947"
+    LOGLINE 1 "EDI_ESC: Test 1: escape plus sign character FAILED"
+  ENDIF
+
+  # EDI_ESC: Test 2: escape apostroph character
+  DEF str = "'t Gooi"
+  EDI_ESC %str$%
+  IF %str$% != "?'t Gooi"
+    LOGLINE 1 "EDI_ESC: Test 2: escape apostroph character FAILED"
+  ENDIF
+
+  # EDI_ESC: Test 3: escape double-colon character
+  DEF str = "Status: OK"
+  EDI_ESC %str$%
+  IF %str$% != "Status?: OK"
+    LOGLINE 1 "EDI_ESC: Test 3: escape double-colon character FAILED"
+  ENDIF
+
+  # EDI_ESC: Test 4: escape question mark character
+  DEF str = "Vraag: is daar iemand?"
+  EDI_ESC %str$%
+  IF %str$% != "Vraag?: is daar iemand??"
+    LOGLINE 1 "EDI_ESC: Test 4: escape question mark character FAILED"
+  ENDIF
+
+
+  # EDI_UNESC testing
+
+  # EDI_UNESC: Test 1: un-escape plus sign character
+  DEF str = "?+31650959947"
+  EDI_UNESC %str$%
+  IF %str$% != "+31650959947"
+    LOGLINE 1 "EDI_UNESC: Test 1: un-escape plus sign character FAILED"
+  ENDIF
+
+  # EDI_UNESC: Test 2: un-escape apostroph character
+  DEF str = "?'t Gooi"
+  EDI_UNESC %str$%
+  IF %str$% != "'t Gooi"
+    LOGLINE 1 "EDI_UNESC: Test 2: un-escape apostroph character FAILED"
+  ENDIF
+
+  # EDI_UNESC: Test 3: un-escape double-colon character
+  DEF str = "Status?: OK"
+  EDI_UNESC %str$%
+  IF %str$% != "Status: OK"
+    LOGLINE 1 "EDI_UNESC: Test 3: un-escape double-colon character FAILED"
+  ENDIF
+
+  # EDI_UNESC: Test 4: un-escape question mark character
+  DEF str = "Vraag?: is daar iemand??"
+  EDI_UNESC %str$%
+  IF %str$% != "Vraag: is daar iemand?"
+    LOGLINE 1 "EDI_UNESC: Test 4: un-escape question mark character FAILED"
   ENDIF
 
 ENDFUNCTION
+
+
+# Only turn off in case of severe performance impact (!)
+EDI_TEST

@@ -1,0 +1,135 @@
+
+INCLUDE DEBUG
+
+VAR XML_MAX_OBJECTS
+DEF XML_MAX_OBJECTS = 999
+VAR_XML XML_OBJECTS[%XML_MAX_OBJECTS%]
+VAR XML_LEVEL
+VAR XML_TAG
+VAR XML_TEMP_FOLDER
+
+FUNCTION XML_TEMP folder
+  DEF XML_TEMP_FOLDER = PATHWITHSLASH(%folder$%)
+ENDFUNCTION
+
+XML_TEMP "C:\TEMP"
+
+# Read an XML file into memory (fails if XML not well-formed)
+FUNCTION XML_READ file
+  DEF XML_LEVEL = 1
+  DEF XML_TAG   = ""
+  XMLREADFROMFILE XML_OBJECTS[%XML_LEVEL%] %file$%
+ENDFUNCTION
+
+# Save XML to file
+FUNCTION XML_SAVE file
+  IF NOT %XML_LEVEL%
+    INFOLINE 1 "XML_SAVE: No XML object to export."
+    STOP
+  ENDIF
+  IF %file$% == ""
+    INFOLINE 1 "XML_SAVE: Please indicate export file."
+    STOP
+  ENDIF
+  XMLWRITETOFILE XML_OBJECTS[%XML_LEVEL%] %file$% 1 1 "UTF-8"
+ENDFUNCTION
+
+FUNCTION XML_EXPORT text
+  VAR file
+  GETGUID file
+  DEF file = %XML_TEMP_FOLDER$% + %file$% + ".XML"
+  XML_SAVE %file$%
+  LOADFILETEXT text = %file$%
+  DELETEFILE %file$%
+ENDFUNCTION
+
+FUNCTION XML_IMPORT text
+  VAR file
+  GETGUID file
+  DEF file = %XML_TEMP_FOLDER$% + %file$% + ".XML"
+  SAVEFILETEXT %file$% %text$% 1 OVERWRITE
+  XML_READ %file$%
+  DELETEFILE %file$%
+ENDFUNCTION
+
+FUNCTION XML_COUNT count = tag
+  VAR level
+  DEF level = 1
+  XMLGETRECORDCOUNT count = XML_OBJECTS[%XML_LEVEL%] %tag$% %level% 0
+  IF %count% == 0
+    DEF level = 2
+    XMLGETRECORDCOUNT count = XML_OBJECTS[%XML_LEVEL%] %tag$% %level% 0
+    IF %count% < 0
+      DEF count = 0
+    ENDIF
+  ENDIF
+ENDFUNCTION
+
+FUNCTION XML_ENTER tag count
+  IF NOT %count%
+    DEF count = 1
+  ENDIF
+  VAR level
+  VAR error XML_NEXT_LEVEL
+  DEF XML_NEXT_LEVEL = %XML_LEVEL% + 1
+  DEF level = 1
+  XMLGETRECORD error XML_OBJECTS[%XML_NEXT_LEVEL%] = XML_OBJECTS[%XML_LEVEL%] %tag$% %level% %count% 0
+  IF %error%
+    DEF level = 2
+    XMLGETRECORD error XML_OBJECTS[%XML_NEXT_LEVEL%] = XML_OBJECTS[%XML_LEVEL%] %tag$% %level% %count% 0
+    IF NOT %error%
+      DEF XML_LEVEL = %XML_NEXT_LEVEL%
+      DEF XML_TAG   = %tag$%
+    ENDIF
+  ELSE
+    DEF XML_LEVEL = %XML_NEXT_LEVEL%
+  ENDIF
+ENDFUNCTION
+
+FUNCTION XML_EXIT
+  IF %XML_LEVEL% > 2
+    INC XML_LEVEL -1
+  ENDIF
+ENDFUNCTION
+
+FUNCTION XML_CONTENT content = tag n
+  VAR error
+  XMLGETELEMENT error content = XML_OBJECTS[%XML_LEVEL%] "tag" "" 1 %n% 0
+ENDFUNCTION
+
+FUNCTION XML_ATTR c1 = a1
+ENDFUNCTION
+
+XML_ENTER "Timeseries" 1
+XML_ATTR %code$% = "code"
+
+XML_READ "C:\TEMP\XMLIN.XML"
+DEBUG "Level: " %XML_LEVEL$%
+
+VAR c txt
+XML_COUNT %c$% = "TimeseriesResponse"
+DEBUG "TimeseriesResponse: " %c$%
+
+XML_ENTER "TimeseriesResponse"
+DEBUG "Level: " %XML_LEVEL$%
+XML_EXPORT %txt$%
+DEBUG "XML: " %txt$%
+
+XML_COUNT %c$% = "Meter"
+DEBUG "Meters: " %c$%
+
+XML_ENTER "Meter"
+XML_EXPORT %txt$%
+DEBUG "XML: " %txt$%
+
+XML_COUNT %c$% = "Data"
+DEBUG "Datas: " %c$%
+
+XML_ENTER "Data"
+XML_EXPORT %txt$%
+DEBUG "XML: " %txt$%
+
+#XML_CONTENT
+
+XML_EXIT
+
